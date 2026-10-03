@@ -112,6 +112,7 @@ function JoinFlow({
   onReset: () => void;
 }) {
   const selected = session.roles.find((r) => r.id === picked);
+  const [confirmed, setConfirmed] = useState(false);
   return (
     <div className="w-full max-w-md space-y-4 text-left">
       <div className="rounded-2xl border border-sky-400/25 bg-sky-500/8 p-4">
@@ -169,9 +170,19 @@ function JoinFlow({
         </ul>
       </div>
 
+      {confirmed && selected ? (
+        <div className="rounded-xl border border-sky-400/25 bg-sky-500/8 p-3">
+          <BadgeTone tone="ok"><Check size={11} /> ROLE CONFIRMED</BadgeTone>
+          <p className="mt-2 text-[11px] leading-relaxed text-slate-300">
+            {selected.role} · {selected.shift} at {selected.location}. Your shift and task checklist are now visible in the
+            volunteer view.
+          </p>
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap gap-2">
-        <Button variant="primary" disabled={!picked}>
-          <Check size={14} /> Confirm role
+        <Button variant="primary" disabled={!picked || confirmed} onClick={() => setConfirmed(true)}>
+          <Check size={14} /> {confirmed ? "Confirmed" : "Confirm role"}
         </Button>
         <Button variant="ghost" onClick={onReset}>
           Scan again
