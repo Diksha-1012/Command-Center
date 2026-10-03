@@ -34,6 +34,7 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Overview", icon: LayoutDashboard, group: "Main" },
   { to: "/events", label: "Events", icon: Ticket, group: "Main" },
+  { to: "/data", label: "Data Studio", icon: Database, group: "Main" },
   { to: "/command", label: "Command Center", icon: Activity, group: "Main", badgeKey: "alerts" },
   { to: "/schedule", label: "Schedule", icon: CalendarDays, group: "Operations" },
   { to: "/teams", label: "Teams", icon: Users, group: "Operations" },

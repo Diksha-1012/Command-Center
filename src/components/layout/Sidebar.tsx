@@ -4,9 +4,10 @@ import { cn } from "@/lib/cn";
 import { useNexus } from "@/store/DataContext";
 import { activeAlerts } from "@/lib/selectors";
 import { canAccess, ROLE_BY_ID } from "@/lib/roles";
+import { ModeBadge } from "@/components/domain/RecordSource";
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
-  const { data, role, dataSource } = useNexus();
+  const { data, role, dataSource, mode } = useNexus();
   const roleDef = ROLE_BY_ID[role];
   const items = NAV_ITEMS.filter((i) => canAccess(roleDef, i.to));
   const groups = NAV_GROUPS.filter((g) => items.some((i) => i.group === g));
@@ -74,12 +75,13 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         ))}
       </nav>
 
-      <div className="space-y-1 border-t border-white/8 px-4 py-3">
-        <div className="flex items-center gap-2 text-[11px] text-slate-500">
-          <span className={cn("h-2 w-2 rounded-full", dataSource.kind === "live" ? "bg-sky-400" : "bg-amber-400")} />
+      <div className="space-y-1.5 border-t border-white/8 px-4 py-3">
+        <ModeBadge mode={mode} className="w-full justify-center" />
+        <div className="flex items-center gap-2 text-[10px] text-slate-500">
+          <span className={cn("h-1.5 w-1.5 rounded-full", dataSource.kind === "live" ? "bg-sky-400" : "bg-amber-400")} />
           {dataSource.label}
         </div>
-        <div className="text-[10px] text-slate-600">{roleDef.name} · {data.event.name}</div>
+        <div className="truncate text-[10px] text-slate-600">{roleDef.name} · {data.event.name}</div>
       </div>
     </div>
   );

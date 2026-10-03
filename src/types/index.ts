@@ -12,6 +12,36 @@ export type ID = string;
 
 /* ----------------------------- primitives ----------------------------- */
 
+/* ---------------------------- provenance ------------------------------ */
+
+/**
+ * WORKSPACE MODE — NEXUS OPS always runs in exactly one of these.
+ *   demo — synthetic KINETEX TECHFEST 2026 dataset
+ *   live — real operational data entered by the user (persisted locally)
+ * The two datasets never mix; switching reloads the other workspace.
+ */
+export type WorkspaceMode = "demo" | "live";
+
+/**
+ * Per-record provenance. Every important record carries this so the UI can
+ * expose a `Source:` label. Records are created with the source of the
+ * workspace that produced them.
+ *   demo   — synthetic demonstration record
+ *   live   — real user-created operational record
+ *   notion — record pulled from a connected Notion workspace
+ */
+export type RecordSource = "demo" | "live" | "notion";
+
+/**
+ * Mixed into every core record so provenance travels with the data.
+ * Demo datasets are tagged `sourceType: "demo"` at load and every record created
+ * through the store receives a source automatically; consumers default to
+ * `"demo"` when the field is absent.
+ */
+export interface Sourced {
+  sourceType?: RecordSource;
+}
+
 export type Severity = "critical" | "warning" | "info";
 export type Health = "healthy" | "warning" | "critical";
 export type Priority = "low" | "medium" | "high" | "critical";
@@ -46,7 +76,7 @@ export interface EntityRef {
 
 /* ------------------------------- core --------------------------------- */
 
-export interface Venue {
+export interface Venue extends Sourced {
   id: ID;
   name: string;
   building: string;
@@ -57,7 +87,7 @@ export interface Venue {
   utilization: number; // 0..100
 }
 
-export interface Speaker {
+export interface Speaker extends Sourced {
   id: ID;
   name: string;
   title: string;
@@ -67,7 +97,7 @@ export interface Speaker {
   arrivalStatus: "confirmed" | "pending" | "delayed";
 }
 
-export interface Session {
+export interface Session extends Sourced {
   id: ID;
   eventId: ID;
   title: string;
@@ -85,7 +115,7 @@ export interface Session {
   notes: string;
 }
 
-export interface Member {
+export interface Member extends Sourced {
   id: ID;
   name: string;
   role: string;
@@ -94,7 +124,7 @@ export interface Member {
   avatarTone: AccentTone;
 }
 
-export interface Team {
+export interface Team extends Sourced {
   id: ID;
   name: string;
   leadMemberId: ID;
@@ -104,7 +134,7 @@ export interface Team {
 
 export type ShiftBand = "A" | "B" | "C" | "FULL";
 
-export interface Volunteer {
+export interface Volunteer extends Sourced {
   id: ID;
   name: string;
   role: string;
@@ -121,7 +151,7 @@ export interface Volunteer {
   shift: ShiftBand;
 }
 
-export interface Task {
+export interface Task extends Sourced {
   id: ID;
   title: string;
   description: string;
@@ -138,7 +168,7 @@ export interface Task {
   resourceId?: ID;
 }
 
-export interface ResourceItem {
+export interface ResourceItem extends Sourced {
   id: ID;
   name: string;
   category: string;
@@ -157,7 +187,7 @@ export type DependencyType =
   | "communication"
   | "approval";
 
-export interface Dependency {
+export interface Dependency extends Sourced {
   id: ID;
   source: EntityRef;
   target: EntityRef;
@@ -177,7 +207,7 @@ export interface Alert {
   acknowledged: boolean;
 }
 
-export interface Communication {
+export interface Communication extends Sourced {
   id: ID;
   channel: "email" | "whatsapp" | "slack" | "sms" | "announcement";
   audience: string;
@@ -193,7 +223,7 @@ export interface ScheduleItem {
   order: number;
 }
 
-export interface KnowledgeItem {
+export interface KnowledgeItem extends Sourced {
   id: ID;
   title: string;
   category: string;
@@ -203,7 +233,7 @@ export interface KnowledgeItem {
   linkedEntity?: EntityRef;
 }
 
-export interface EventRecord {
+export interface EventRecord extends Sourced {
   id: ID;
   name: string;
   tagline: string;
@@ -493,7 +523,7 @@ export interface RebalanceMove {
 
 export type IncidentStatus = "open" | "investigating" | "mitigated" | "resolved";
 
-export interface Incident {
+export interface Incident extends Sourced {
   id: ID;
   title: string;
   severity: Severity;
@@ -661,7 +691,7 @@ export interface NotionConnection {
 
 export type MemoryKind = "lesson" | "incident" | "decision" | "workflow_success" | "workflow_failure" | "note";
 
-export interface MemoryEntry {
+export interface MemoryEntry extends Sourced {
   id: ID;
   kind: MemoryKind;
   title: string;

@@ -22,6 +22,7 @@ import { Replay } from "./pages/Replay";
 import { VolunteerMobile } from "./pages/VolunteerMobile";
 import { Join } from "./pages/Join";
 import { Docs } from "./pages/Docs";
+import { DataStudio } from "./pages/DataStudio";
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
       <Route element={<AppShell />}>
         <Route path="/" element={<Overview />} />
         <Route path="/events" element={<Events />} />
+        <Route path="/data" element={<DataStudio />} />
         <Route path="/events/:eventId" element={<EventDetails />} />
         <Route path="/command" element={<CommandCenter />} />
         <Route path="/schedule" element={<Schedule />} />

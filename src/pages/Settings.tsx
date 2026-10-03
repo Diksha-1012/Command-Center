@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CheckCircle2, Database, RefreshCw, Server, Shield, Users2, Wand2 } from "lucide-react";
+import { CheckCircle2, Database, FlaskConical, Radio, RefreshCw, Server, Shield, TriangleAlert, Users2, Wand2 } from "lucide-react";
 import { useNexus } from "@/store/DataContext";
+import { MODE_META } from "@/lib/workspace";
 import { BadgeTone, Button, Panel, PanelHeader, SectionTitle, StatusDot } from "@/components/ui/primitives";
+import { ModeBadge } from "@/components/domain/RecordSource";
 import { cn } from "@/lib/cn";
+import type { WorkspaceMode } from "@/types";
 
 const ROLES = [
   { name: "Event Organizer / Leadership", status: "active", note: "Overview, health, portfolio" },
@@ -15,18 +18,58 @@ const ROLES = [
 ];
 
 export function Settings() {
-  const { data, resetDemo } = useNexus();
+  const { data, mode, setMode, counts, notionConnected, resetDemo, resetLive } = useNexus();
   const navigate = useNavigate();
   const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
   const [reducedMotion, setReducedMotion] = useState(false);
+  const [confirmLiveReset, setConfirmLiveReset] = useState(false);
+  const [liveResetDone, setLiveResetDone] = useState(false);
 
   return (
     <div className="space-y-5">
       <SectionTitle
         eyebrow="Workspace"
         title="Settings"
-        description="Workspace identity, role architecture, data sources and demo controls."
+        description="Workspace mode, identity, role architecture, data sources and demo controls."
+        action={<ModeBadge mode={mode} />}
       />
+
+      <Panel className={cn(mode === "demo" ? "border-amber-400/25" : "border-emerald-400/25")}>
+        <PanelHeader
+          title="Data Mode"
+          subtitle="Demo data and live data are stored separately and never mixed"
+          icon={mode === "demo" ? <FlaskConical size={14} /> : <Radio size={14} />}
+        />
+        <div className="grid gap-3 p-4 md:grid-cols-2">
+          {(["demo", "live"] as WorkspaceMode[]).map((m) => {
+            const meta = MODE_META[m];
+            const active = m === mode;
+            const Icon = m === "demo" ? FlaskConical : Radio;
+            return (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                className={cn(
+                  "rounded-xl border p-3 text-left transition-colors",
+                  active
+                    ? m === "demo"
+                      ? "border-amber-400/40 bg-amber-500/10"
+                      : "border-emerald-400/40 bg-emerald-500/10"
+                    : "border-white/8 bg-white/3 hover:bg-white/6",
+                )}
+              >
+                <div className="flex items-center gap-2">
+                  <Icon size={15} className={m === "demo" ? "text-amber-300" : "text-emerald-300"} />
+                  <span className="text-sm font-semibold text-slate-100">{meta.label}</span>
+                  {active ? <BadgeTone tone={m === "demo" ? "warn" : "ok"}>active</BadgeTone> : null}
+                  <span className="ml-auto text-[10px] text-slate-500">{counts[m]} records</span>
+                </div>
+                <p className="mt-1.5 text-[11px] leading-relaxed text-slate-400">{meta.description}</p>
+              </button>
+            );
+          })}
+        </div>
+      </Panel>
 
       <div className="grid gap-5 lg:grid-cols-3">
         <Panel className="lg:col-span-2">
@@ -36,7 +79,7 @@ export function Settings() {
             <Field label="Event date" value="15 November 2026" />
             <Field label="Primary venue" value={data.venues.find((v) => v.id === data.event.venueId)?.name ?? "—"} />
             <Field label="Organizers" value={data.event.organizers.join(" · ")} />
-            <Field label="Environment" value="Demo dataset (in-memory) · Notion is the durable layer" />
+            <Field label="Environment" value={mode === "demo" ? "DEMO MODE · synthetic dataset (in-memory)" : "LIVE MODE · real data persisted on this device"} />
             <Field label="Build" value="NEXUS OPS · v0.3 (Part 1–3)" />
           </div>
         </Panel>
@@ -44,9 +87,9 @@ export function Settings() {
         <Panel>
           <PanelHeader title="Data Sources" subtitle="Where NEXUS reads from" icon={<Database size={14} />} />
           <div className="space-y-2 p-4">
-            <SourceRow label="Local demo store" detail={`${data.tasks.length} tasks · ${data.sessions.length} sessions`} tone="ok" />
-            <SourceRow label="Notion knowledge layer" detail={data.notion.connected ? `${data.notion.mode} mode · connected` : "demo mode · not connected"} tone={data.notion.connected ? "ok" : "warn"} />
-            <SourceRow label="Backend API" detail="in-memory store (no backend)" tone="neutral" />
+            <SourceRow label={mode === "demo" ? "Local demo store" : "Local live store"} detail={`${data.tasks.length} tasks · ${data.sessions.length} sessions`} tone="ok" />
+            <SourceRow label="Notion knowledge layer" detail={notionConnected ? "live · connected" : "NOTION NOT CONNECTED"} tone={notionConnected ? "ok" : "warn"} />
+            <SourceRow label="Backend API" detail={mode === "demo" ? "in-memory store (no backend)" : "persisted to this device (no backend)"} tone="neutral" />
             <SourceRow label="AI engine" detail="grounded deterministic engine" tone="ok" />
             <div className="pt-1">
               <Button size="sm" variant="outline" className="w-full" onClick={() => navigate("/knowledge")}>
@@ -117,23 +160,59 @@ export function Settings() {
         </Panel>
 
         <Panel>
-          <PanelHeader title="Demo Controls" subtitle="Reset the in-memory dataset for a clean pitch" icon={<RefreshCw size={14} />} />
-          <div className="space-y-3 p-4">
-            <div className="flex items-start gap-3 rounded-xl border border-amber-400/20 bg-amber-500/6 p-3">
-              <Shield size={15} className="mt-0.5 text-amber-300" />
-              <p className="text-[11px] leading-relaxed text-slate-300">
-                This resets every task status, alert acknowledgement and Notion sync state back to the seeded demo
-                values. Use it before each judge demo run.
-              </p>
+          <PanelHeader title="Data Safety" subtitle="Demo and live resets are strictly separated" icon={<RefreshCw size={14} />} />
+          <div className="space-y-4 p-4">
+            <div className="space-y-2.5">
+              <div className="flex items-start gap-3 rounded-xl border border-amber-400/20 bg-amber-500/6 p-3">
+                <Shield size={15} className="mt-0.5 text-amber-300" />
+                <p className="text-[11px] leading-relaxed text-slate-300">
+                  Resets the synthetic KINETEX TECHFEST 2026 dataset to its seeded values. This action never touches LIVE
+                  data.
+                </p>
+              </div>
+              <Button variant="outline" onClick={resetDemo}>
+                <RefreshCw size={14} /> Reset demo data only
+              </Button>
+              <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                <StatusDot tone="warn" /> Demo workspace only · live records are preserved
+              </div>
             </div>
-            <Button variant="outline" onClick={resetDemo}>
-              <RefreshCw size={14} /> Reset demo dataset
-            </Button>
-            <div className="flex items-center gap-2 text-[11px] text-slate-500">
-              <StatusDot tone="warn" /> State is in-memory for the session · the durable copy is Notion
+
+            <div className="space-y-2.5 border-t border-white/8 pt-4">
+              <div className="flex items-start gap-3 rounded-xl border border-rose-400/25 bg-rose-500/8 p-3">
+                <TriangleAlert size={15} className="mt-0.5 text-rose-300" />
+                <p className="text-[11px] leading-relaxed text-slate-300">
+                  Clearing LIVE data permanently deletes every real record you created. This is intentionally guarded —
+                  there is no single-click live reset.
+                </p>
+              </div>
+              {!confirmLiveReset ? (
+                <Button variant="danger" onClick={() => setConfirmLiveReset(true)}>
+                  <TriangleAlert size={14} /> Clear live data…
+                </Button>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="danger"
+                    onClick={() => {
+                      resetLive();
+                      setConfirmLiveReset(false);
+                      setLiveResetDone(true);
+                      setMode("live");
+                    }}
+                  >
+                    Confirm: delete all live records
+                  </Button>
+                  <Button variant="ghost" onClick={() => setConfirmLiveReset(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              )}
+              {liveResetDone ? <BadgeTone tone="ok">LIVE WORKSPACE CLEARED</BadgeTone> : null}
             </div>
+
             <div className="pt-1">
-              <BadgeTone tone="ok">RESET RE-SEEDS THE DEMO IN PLACE</BadgeTone>
+              <BadgeTone tone="ok">DEMO RESET RE-SEEDS THE DEMO IN PLACE</BadgeTone>
             </div>
           </div>
         </Panel>

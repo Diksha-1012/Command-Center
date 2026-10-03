@@ -63,6 +63,12 @@ export interface SyncOutcome {
   /** The durable record of every write, newest first. */
   ops: SyncOp[];
   pulled: { database: string; entityId: string; entityLabel: string; fields: string[] }[];
+  /**
+   * True when the counts come from a deterministic simulation because no real
+   * Notion credentials are configured. The Sync Center uses this to refuse to
+   * show a success state and instead display "NOTION NOT CONNECTED".
+   */
+  simulated: boolean;
 }
 
 /**
@@ -77,6 +83,7 @@ export function runDemoSync(
   prev: NotionSyncState,
   direction: "both" | "push" | "pull" = "both",
   breach = false,
+  simulated = true,
 ): SyncOutcome {
   const rows = mapDataToRows(data, memory);
   const now = new Date().toISOString();
@@ -97,18 +104,27 @@ export function runDemoSync(
   });
 
   const stats = statsFor(databases, direction === "pull" ? prev.stats : prev.lastSyncAt ? prev.stats : null);
-  const ops = buildOps(data, memory, prev, direction, now);
-  const pulled = direction === "pull" || direction === "both" ? buildPulled(data) : [];
+  // Without real credentials we record NO write operations and pull NO edits —
+  // nothing may be presented as if it happened in Notion.
+  const ops = simulated ? [] : buildOps(data, memory, prev, direction, now);
+  const pulled = simulated ? [] : direction === "pull" || direction === "both" ? buildPulled(data) : [];
 
   const log: SyncLogEntry[] = [
-    {
-      id: `log-${now}`,
-      at: now,
-      level: breach ? ("warn" as const) : ("info" as const),
-      message: breach
-        ? `Sync completed with ${stats.failed} failed write(s) in Communications. Retry scheduled.`
-        : `Sync completed · ${stats.created} created · ${stats.updated} updated across ${databases.length} databases.`,
-    },
+    simulated
+      ? {
+          id: `log-${now}`,
+          at: now,
+          level: "warn" as const,
+          message: `NOTION NOT CONNECTED — no records were sent to Notion. ${stats.recordsSynced} record(s) previewed locally only.`,
+        }
+      : {
+          id: `log-${now}`,
+          at: now,
+          level: breach ? ("warn" as const) : ("info" as const),
+          message: breach
+            ? `Sync completed with ${stats.failed} failed write(s) in Communications. Retry scheduled.`
+            : `Sync completed · ${stats.created} created · ${stats.updated} updated across ${databases.length} databases.`,
+        },
     ...(pulled.length
       ? [
           {
@@ -126,17 +142,22 @@ export function runDemoSync(
 
   return {
     sync: {
-      status: stats.failed > 0 ? "error" : "success",
+      status: simulated ? "offline" : stats.failed > 0 ? "error" : "success",
       health,
-      lastSyncAt: now,
+      lastSyncAt: simulated ? null : now,
       stats,
       databases,
       recentOps: [...ops, ...prev.recentOps].slice(0, 60),
       log,
-      error: stats.failed > 0 ? `${stats.failed} record(s) failed to write. Local operational state is preserved.` : null,
+      error: simulated
+        ? "NOTION NOT CONNECTED — no credentials configured. Nothing was synchronized."
+        : stats.failed > 0
+          ? `${stats.failed} record(s) failed to write. Local operational state is preserved.`
+          : null,
     },
     ops,
     pulled,
+    simulated,
   };
 }
 

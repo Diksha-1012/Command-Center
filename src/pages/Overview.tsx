@@ -23,12 +23,14 @@ import { dailyBrief } from "@/lib/brief";
 import { AlertCard } from "@/components/domain/AlertCard";
 import { HealthMetricBars, RadialGauge, StackedBar } from "@/components/ui/charts";
 import { Avatar, BadgeTone, Button, Panel, PanelHeader, ProgressBar, StatusDot } from "@/components/ui/primitives";
+import { ModeBadge } from "@/components/domain/RecordSource";
 import { timeOf } from "@/lib/format";
 import { cn } from "@/lib/cn";
 
 export function Overview() {
-  const { data, acknowledgeAlert } = useNexus();
+  const { data, mode, acknowledgeAlert } = useNexus();
   const navigate = useNavigate();
+  const demo = mode === "demo";
   const brief = dailyBrief(data);
   const kpis = computeKpis(data);
   const health = eventHealthScore(data);
@@ -48,9 +50,7 @@ export function Overview() {
         <div className="relative flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <BadgeTone tone="ok">
-                <StatusDot tone="ok" pulse /> LIVE OPERATIONS
-              </BadgeTone>
+              <ModeBadge mode={mode} />
               <BadgeTone tone="ai">
                 <Sparkles size={11} /> DEPENDENCY INTELLIGENCE ACTIVE
               </BadgeTone>
@@ -75,14 +75,69 @@ export function Overview() {
         </div>
       </Panel>
 
-      {/* Daily brief */}
+      {/* Daily brief — grounded in real data in LIVE mode; demo narrative otherwise */}
       <Panel className="relative overflow-hidden">
         <PanelHeader
           title="NEXUS Daily Brief"
-          subtitle="Every line links to the underlying record"
+          subtitle={demo ? "Every line links to the underlying record" : "Generated from your live operational records"}
           icon={<Sparkles size={14} />}
-          action={<BadgeTone tone="ai">generated · grounded in event data</BadgeTone>}
+          action={<BadgeTone tone="ai">generated · grounded in {demo ? "event" : "live"} data</BadgeTone>}
         />
+        {!demo && data.tasks.length === 0 && data.sessions.length === 0 ? (
+          <div className="p-4">
+            <p className="text-sm text-slate-300">No live records yet.</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Add your event, sessions, teams and tasks in the Data Studio — the daily brief will build itself from what you
+              enter.
+            </p>
+            <Button className="mt-3" variant="primary" onClick={() => navigate("/data")}>
+              Open Data Studio
+            </Button>
+          </div>
+        ) : null}
+        {!demo && (data.tasks.length > 0 || data.sessions.length > 0) ? (
+          <div className="grid gap-4 p-4 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <p className="text-sm font-medium text-slate-200">{brief.greeting}</p>
+              <div className="mt-3 space-y-1.5">
+                {brief.items.length === 0 ? (
+                  <p className="text-xs text-slate-500">No operational issues detected from your live records.</p>
+                ) : (
+                  brief.items.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => navigate(item.ref ? ROUTE_FOR_KIND[item.ref.kind] ?? "/command" : "/command")}
+                      className="flex w-full items-start gap-2.5 rounded-lg border border-white/8 bg-white/3 px-2.5 py-2 text-left hover:bg-white/6"
+                    >
+                      <span className={cn("mt-1 h-2 w-2 shrink-0 rounded-full", item.level === "critical" ? "bg-rose-400" : item.level === "warning" ? "bg-amber-400" : "bg-emerald-400")} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-xs text-slate-300">{item.text}</span>
+                        {item.ref ? <span className="mt-0.5 block text-[10px] text-slate-500">{item.ref.kind}: {item.ref.label}</span> : null}
+                      </span>
+                      <ArrowUpRight size={13} className="mt-0.5 shrink-0 text-slate-600" />
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Recommended actions</div>
+              <div className="mt-2 space-y-2">
+                {brief.actions.slice(0, 4).map((a, i) => (
+                  <div key={a.id} className="rounded-xl border border-white/8 bg-white/3 p-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="grid h-5 w-5 place-items-center rounded-md bg-violet-500/15 text-[10px] font-bold text-violet-300">{i + 1}</span>
+                      <span className="text-[11px] font-medium text-slate-200">{a.title}</span>
+                    </div>
+                    <p className="mt-1 text-[10px] text-slate-500">{a.detail}</p>
+                  </div>
+                ))}
+                {brief.actions.length === 0 ? <p className="text-[11px] text-slate-500">No actions recommended.</p> : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
+        {demo ? (
         <div className="grid gap-4 p-4 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <p className="text-sm font-medium text-slate-200">{brief.greeting}</p>
@@ -135,6 +190,7 @@ export function Overview() {
             </div>
           </div>
         </div>
+        ) : null}
       </Panel>
 
       {/* KPIs */}

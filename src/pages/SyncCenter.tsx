@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowDownLeft, ArrowUpRight, CheckCircle2, Database, RefreshCw, Server, Sparkles } from "lucide-react";
 import { useNexus } from "@/store/DataContext";
-import { BadgeTone, Button, DemoTag, Panel, PanelHeader, SectionTitle, StatusDot } from "@/components/ui/primitives";
+import { BadgeTone, Button, Panel, PanelHeader, SectionTitle, StatusDot } from "@/components/ui/primitives";
 import { ErrorBlock, LoadingBlock, Notice, StatChip } from "@/components/ui/StateBlocks";
 import { relativeFromNow } from "@/lib/format";
 import { cn } from "@/lib/cn";
@@ -30,9 +30,8 @@ export function SyncCenter() {
     setBusy(null);
   };
 
-  const offline = sync.status === "error" || (connection.mode === "live" && !serverStatus.available);
+  const live = connection.mode === "live" && serverStatus.available;
   const lastSync = sync.lastSyncAt ? relativeFromNow(sync.lastSyncAt, new Date().toISOString()) : "never";
-  const live = connection.mode === "live";
 
   return (
     <div className="space-y-5">
@@ -40,15 +39,26 @@ export function SyncCenter() {
         eyebrow="Knowledge Layer"
         title="Notion Sync Center"
         description="Two-way synchronization between NEXUS operational records and the Notion knowledge layer."
-        action={live ? <BadgeTone tone="ok">LIVE NOTION DATA</BadgeTone> : <DemoTag label="DEMO DATA" />}
+        action={live ? <BadgeTone tone="ok">NOTION CONNECTED</BadgeTone> : <BadgeTone tone="warn">NOTION NOT CONNECTED</BadgeTone>}
       />
 
-      {offline ? (
+      {!live ? (
         <ErrorBlock
-          title="Notion connection temporarily unavailable"
-          message={sync.error ?? serverStatus.reason ?? "The Notion API could not be reached. Local operational state is preserved and will be written back on the next successful sync."}
+          title="NOTION NOT CONNECTED"
+          message={
+            sync.error ??
+            serverStatus.reason ??
+            "No Notion credentials are configured. Nothing has been — and nothing will be — synchronized to Notion until a token is set on the server. Your local operational data is preserved."
+          }
           onRetry={() => void refreshServerStatus()}
           retrying={connection.checking}
+        />
+      ) : sync.status === "error" ? (
+        <ErrorBlock
+          title="Notion sync failed"
+          message={sync.error ?? "The Notion API reported an error. Local operational state is preserved."}
+          onRetry={() => void run("both")}
+          retrying={!!busy}
         />
       ) : null}
 
@@ -61,8 +71,8 @@ export function SyncCenter() {
             action={
               <div className="flex items-center gap-2">
                 <StatusDot tone={sync.health === "healthy" ? "ok" : sync.health === "warning" ? "warn" : "bad"} />
-                <span className={cn("text-[11px] font-semibold uppercase tracking-wide", sync.health === "healthy" ? "text-emerald-300" : sync.health === "warning" ? "text-amber-300" : "text-rose-300")}>
-                  {sync.status === "idle" ? "AWAITING FIRST SYNC" : sync.health.toUpperCase()}
+                <span className={cn("text-[11px] font-semibold uppercase tracking-wide", !live ? "text-amber-300" : sync.health === "healthy" ? "text-emerald-300" : sync.health === "warning" ? "text-amber-300" : "text-rose-300")}>
+                  {!live ? "NOT CONNECTED" : sync.status === "idle" ? "AWAITING FIRST SYNC" : sync.health.toUpperCase()}
                 </span>
               </div>
             }
@@ -71,11 +81,11 @@ export function SyncCenter() {
             <div className="rounded-xl border border-white/8 bg-white/3 p-3">
               <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Connected workspace</div>
               <div className="mt-1 flex items-center gap-2 text-sm text-slate-200">
-                <span>{connection.workspaceIcon}</span>
-                {live ? serverStatus.workspaceName ?? connection.workspaceName : "Kinetex Ops (Demo Workspace)"}
+                <span>{live ? connection.workspaceIcon : "⛔"}</span>
+                {live ? serverStatus.workspaceName ?? connection.workspaceName : "NOTION NOT CONNECTED"}
               </div>
               <div className="mt-1 text-[10px] text-slate-500">
-                {live ? `integration: ${serverStatus.botName ?? "NEXUS"}` : "simulated workspace · demo fallback"}
+                {live ? `integration: ${serverStatus.botName ?? "NEXUS"}` : "no credentials configured · no sync will occur"}
               </div>
             </div>
             <div className="rounded-xl border border-white/8 bg-white/3 p-3">
@@ -86,8 +96,8 @@ export function SyncCenter() {
           </div>
 
           <div className="flex flex-wrap gap-2 px-4 pb-4">
-            <Button size="sm" variant="ai" onClick={() => run("both")} disabled={!!busy}>
-              {busy === "both" ? <RefreshCw size={13} className="animate-spin" /> : <Sparkles size={13} />} Sync both directions
+            <Button size="sm" variant="ai" onClick={() => run("both")} disabled={!!busy} title={live ? undefined : "Notion is not connected — this runs a local preview only"}>
+              {busy === "both" ? <RefreshCw size={13} className="animate-spin" /> : <Sparkles size={13} />} {live ? "Sync both directions" : "Preview sync (not connected)"}
             </Button>
             <Button size="sm" variant="outline" onClick={() => run("push")} disabled={!!busy}>
               {busy === "push" ? <RefreshCw size={13} className="animate-spin" /> : <ArrowUpRight size={13} />} Push app → Notion
@@ -112,12 +122,11 @@ export function SyncCenter() {
             <StatChip label="Failed" value={sync.stats.failed} tone={sync.stats.failed ? "bad" : "neutral"} />
             <StatChip label="Pending" value={sync.stats.pending} tone="neutral" />
             <StatChip label="Databases" value={sync.databases.length} tone="neutral" />
-          </div>
-          <div className="px-4 pb-4">
-            <Notice tone={live ? "ok" : "warn"} title={live ? "LIVE NOTION DATA" : "DEMO DATA"}>
+          </div>            <div className="px-4 pb-4">
+            <Notice tone={live ? "ok" : "warn"} title={live ? "LIVE NOTION DATA" : "NOTION NOT CONNECTED"}>
               {live
                 ? "Counts reflect real push/pull operations against the Notion API."
-                : "Counts come from a deterministic simulation. NEXUS never claims demo data is live Notion synchronization."}
+                : "No Notion credentials are configured, so nothing is synchronized. The counts below are a local preview only — NEXUS never presents them as a real sync."}
             </Notice>
           </div>
         </Panel>

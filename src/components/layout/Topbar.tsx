@@ -5,11 +5,12 @@ import { NAV_ITEMS } from "./nav";
 import { useNexus } from "@/store/DataContext";
 import { EVENT_DATE_LABEL, NOW, CURRENT_USER_ID } from "@/data/seed";
 import { activeAlerts } from "@/lib/selectors";
-import { Avatar, BadgeTone } from "@/components/ui/primitives";
+import { Avatar } from "@/components/ui/primitives";
+import { ModeIndicator, ModeSwitcher } from "@/components/domain/RecordSource";
 import { timeOf } from "@/lib/format";
 
 export function Topbar({ onMenu }: { onMenu: () => void }) {
-  const { data } = useNexus();
+  const { data, mode, setMode, counts } = useNexus();
   const navigate = useNavigate();
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -36,20 +37,25 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
       </button>
 
       <div className="hidden items-center gap-3 md:flex">
+        <div className="hidden xl:block">
+          <ModeIndicator mode={mode} />
+        </div>
+        <ModeSwitcher mode={mode} onChange={setMode} counts={counts} />
         <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/4 px-3 py-1.5">
           <span className="text-[11px] uppercase tracking-wider text-slate-500">Event</span>
-          <span className="text-sm font-semibold text-slate-100">{data.event.name}</span>
-          <BadgeTone tone="ok">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> LIVE
-          </BadgeTone>
+          <span className="max-w-[180px] truncate text-sm font-semibold text-slate-100">{data.event.name}</span>
         </div>
-        <div className="hidden items-center gap-1.5 text-xs text-slate-500 xl:flex">
+        <div className="hidden items-center gap-1.5 text-xs text-slate-500 2xl:flex">
           <CircleDot size={12} className="text-slate-600" />
-          {EVENT_DATE_LABEL} · {timeOf(NOW)} ops clock
+          {mode === "demo" ? `${EVENT_DATE_LABEL} · ${timeOf(NOW)} ops clock` : "live workspace"}
         </div>
       </div>
 
-      <div className="relative ml-auto w-full max-w-xs">
+      <div className="ml-auto flex md:hidden">
+        <ModeSwitcher mode={mode} onChange={setMode} counts={counts} />
+      </div>
+
+      <div className="relative ml-auto w-full max-w-xs md:ml-0">
         <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/4 px-3 py-2">
           <Search size={15} className="text-slate-500" />
           <input

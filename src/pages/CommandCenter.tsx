@@ -13,12 +13,14 @@ import { SessionDrawer } from "@/components/domain/SessionDrawer";
 import { RiskMap } from "@/components/domain/RiskMap";
 import { EmergencySimulation } from "@/components/domain/EmergencySimulation";
 import { StackedBar } from "@/components/ui/charts";
+import { DemoNarrativeNotice, ModeBadge } from "@/components/domain/RecordSource";
 import { relativeFromNow, timeOf } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import type { PulseItem } from "@/types";
 
 export function CommandCenter() {
-  const { data, acknowledgeAlert, acknowledgeAll, risk } = useNexus();
+  const { data, mode, acknowledgeAlert, acknowledgeAll, risk } = useNexus();
+  const demo = mode === "demo";
   const navigate = useNavigate();
   const [openSessionId, setOpenSessionId] = useState<string | null>(null);
   const [whyTeam, setWhyTeam] = useState<string | null>(null);
@@ -65,23 +67,36 @@ export function CommandCenter() {
   return (
     <div className="space-y-5">
       <SectionTitle
-        eyebrow="Live Operations"
+        eyebrow="Operations"
         title="Command Center"
         description="Everything happening right now, ranked by what will break next."
         action={
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <ModeBadge mode={mode} />
             <Button size="sm" variant="ghost" onClick={acknowledgeAll}>
               <CheckCircle2 size={14} /> Acknowledge all
             </Button>
             <Button size="sm" variant="outline" onClick={() => navigate("/impact")}>
               <Activity size={14} /> Impact Simulator
             </Button>
-            <Button size="sm" variant="ai" onClick={() => setEmergencyOpen(true)} title="Run the signature Main Auditorium unavailable scenario">
-              <ShieldAlert size={14} /> Run emergency simulation
+            <Button
+              size="sm"
+              variant="ai"
+              onClick={() => setEmergencyOpen(true)}
+              title={demo ? "Run the signature Main Auditorium unavailable scenario" : "Runs over the synthetic demo dataset"}
+            >
+              <ShieldAlert size={14} /> {demo ? "Run emergency simulation" : "Demo scenario"}
             </Button>
           </div>
         }
       />
+
+      {!demo ? (
+        <DemoNarrativeNotice>
+          The emergency simulation, operational pulse and seeded alert narrative are part of the synthetic KINETEX TECHFEST 2026
+          demonstration. In LIVE mode your own records drive the risk map, alerts and task board.
+        </DemoNarrativeNotice>
+      ) : null}
 
       {/* Operational Pulse — hero strip */}
       <Panel className="relative overflow-hidden">
