@@ -20,6 +20,7 @@ import type {
   NotionConnection,
   NotionMode,
   NotionSyncState,
+  NotionTrace,
   RecordSource,
   ResourceItem,
   RoleId,
@@ -39,9 +40,10 @@ import { buildDependencyGraph } from "@/lib/dependencyEngine";
 import { analyzeRisk, type RiskReport } from "@/lib/riskEngine";
 import { allMemories, seedMemory } from "@/lib/memory";
 import { generateEventReport } from "@/lib/reportGenerator";
-import { initialSyncState, runDemoSync, type SyncOutcome } from "@/lib/notion/syncEngine";
-import { getNotionStatus, pullFromNotion, pushToNotion } from "@/lib/notion/client";
+import { appliedReadsToPulled, buildRealSync, initialSyncState, runDemoSync, type SyncOutcome } from "@/lib/notion/syncEngine";
+import { getNotionStatus, pullFromNotion, pushToNotion, readFromNotion } from "@/lib/notion/client";
 import { mapDataToRows } from "@/lib/notion/mapping";
+import { applyNotionRead, attachNotionTraces } from "@/lib/notion/readTransform";
 import {
   createEmptyLiveData,
   clearPersistedLiveData,
@@ -57,8 +59,11 @@ import {
 export interface ServerStatus {
   available: boolean;
   reason?: string;
+  action?: string;
   workspaceName?: string;
   botName?: string;
+  /** "live" (real token) | "mock" (demo transport) | "offline" */
+  mode?: "live" | "mock" | "offline";
   checkedAt: string | null;
 }
 
@@ -103,6 +108,8 @@ type Action =
   | { type: "alert/ackAll" }
   | { type: "incident/create"; incident: Incident }
   | { type: "incident/status"; id: string; status: IncidentStatus }
+  | { type: "incident/notion"; id: string; notion: NotionTrace }
+  | { type: "memory/notion"; id: string; pageId: string; at: string }
   | { type: "activity/push"; event: ActivityEvent }
   | { type: "change/apply"; request: ChangeRequest; activity: ActivityEvent[] }
   | { type: "change/applyMany"; requests: ChangeRequest[]; activity: ActivityEvent[] }
@@ -249,6 +256,14 @@ function reducer(state: State, action: Action): State {
     case "incident/status": {
       const incidents = data.incidents.map((i) => (i.id === action.id ? { ...i, status: action.status } : i));
       return setActiveData(state, { ...data, incidents });
+    }
+    case "incident/notion": {
+      const incidents = data.incidents.map((i) => (i.id === action.id ? { ...i, notion: action.notion } : i));
+      return setActiveData(state, { ...data, incidents });
+    }
+    case "memory/notion": {
+      const patch = (list: MemoryEntry[]) => list.map((m) => (m.id === action.id ? { ...m, notionPageId: action.pageId, notion: { notionPageId: action.pageId, lastSyncedAt: action.at, syncStatus: "synced" as const, source: "nexus" as const } } : m));
+      return state.mode === "demo" ? { ...state, demoMemory: patch(state.demoMemory) } : { ...state, liveMemory: patch(state.liveMemory) };
     }
     case "activity/push":
       return setActiveData(state, { ...data, activity: [action.event, ...data.activity] });
@@ -468,8 +483,35 @@ export function DataProvider({ children }: { children: ReactNode }) {
       acknowledgeAlert: (id) => dispatch({ type: "alert/ack", id }),
       acknowledgeAll: () => dispatch({ type: "alert/ackAll" }),
       pushActivity: (event) => dispatch({ type: "activity/push", event: { ...event, id: uid("act"), at: nowIso() } }),
-      createIncident: (incident) =>
-        dispatch({ type: "incident/create", incident: { ...incident, id: uid("inc"), timestamp: nowIso(), sourceType: sourceForMode } }),
+      createIncident: (incident) => {
+        const created: Incident = { ...incident, id: uid("inc"), timestamp: nowIso(), sourceType: sourceForMode };
+        dispatch({ type: "incident/create", incident: created });
+        dispatch({
+          type: "activity/push",
+          event: activity("incident", `Incident opened: ${created.title}`, `${created.severity.toUpperCase()} · ${created.location}`, [
+            { kind: "incident", id: created.id, label: created.title },
+          ]),
+        });
+        // If Notion is genuinely connected, write the incident immediately and
+        // attach the returned page id so the UI can show `Synced to Notion`.
+        if (notionConnected) {
+          void (async () => {
+            try {
+              const rows = mapDataToRows({ ...data, incidents: [created, ...data.incidents] }, memories);
+              const pushed = await pushToNotion({ incidents: rows.incidents.slice(0, 1) });
+              const result = pushed.results.find((r) => r.key === "incidents" && r.entityId === created.id);
+              if (result && result.status !== "failed" && result.pageId) {
+                dispatch({ type: "incident/notion", id: created.id, notion: { notionPageId: result.pageId, notionDatabaseId: result.databaseId, lastSyncedAt: pushed.syncedAt ?? nowIso(), syncStatus: "synced", source: "nexus" } });
+                dispatch({ type: "activity/push", event: activity("sync", `Incident ${created.id} synced to Notion`, `page ${result.pageId.slice(0, 8)} · ${pushed.mock ? "DEMO transport" : "live API"}`, [{ kind: "incident", id: created.id, label: created.title }]) });
+              } else {
+                dispatch({ type: "incident/notion", id: created.id, notion: { syncStatus: "failed", source: "nexus" } });
+              }
+            } catch {
+              dispatch({ type: "incident/notion", id: created.id, notion: { syncStatus: "failed", source: "nexus" } });
+            }
+          })();
+        }
+      },
       setIncidentStatus: (id, status) => dispatch({ type: "incident/status", id, status }),
 
       applySimulation: (result) => {
@@ -568,60 +610,111 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const mapped: ServerStatus = {
           available: status.available,
           reason: status.reason,
+          action: status.action,
           workspaceName: status.workspaceName,
           botName: status.botName,
+          mode: status.mode,
           checkedAt: status.checkedAt,
         };
         dispatch({ type: "notion/serverStatus", status: mapped });
-        dispatch({ type: "notion/connection", patch: { checking: false, lastCheckedAt: status.checkedAt } });
+        // A real (or mock) connection may also complete the wizard.
+        if (status.available) {
+          dispatch({
+            type: "notion/connection",
+            patch: { checking: false, lastCheckedAt: status.checkedAt, serverAvailable: true, mode: status.mode === "live" ? "live" : "demo" },
+          });
+        } else {
+          dispatch({ type: "notion/connection", patch: { checking: false, lastCheckedAt: status.checkedAt, serverAvailable: false } });
+        }
         return mapped;
       },
       syncNotion: async (direction = "both") => {
         dispatch({ type: "notion/syncStart" });
+        // `live` means a real OR mock connection is verified on the server. A
+        // mock connection is honest about being a demo transport.
         const live = state.connection.mode === "live" && state.connection.serverAvailable;
-        let breach = false;
-        try {
-          if (live) {
-            if (direction !== "pull") {
-              const pushed = await pushToNotion(mapDataToRows(data, memories));
-              if (!pushed.ok || (pushed.created === 0 && pushed.updated === 0 && pushed.failed === 0)) breach = true;
-            }
-            if (direction !== "push") await pullFromNotion();
-          }
-          // Without credentials there is NO real synchronization. The outcome is
-          // explicitly marked simulated so the UI can never claim a fake success.
-        } catch (err) {
-          breach = true;
-          dispatch({
-            type: "notion/syncFail",
-            error: err instanceof Error ? err.message : "Notion connection temporarily unavailable.",
-          });
-        }
-        const outcome = runDemoSync(data, memories, state.sync, direction, breach, !live);
-        dispatch({ type: "notion/syncDone", outcome });
+        const mock = state.serverStatus.mode === "mock";
+        const at = new Date().toISOString();
+
         if (!live) {
+          // No credentials → NO real synchronization. The outcome is marked
+          // simulated so the UI can never claim a fake success.
+          const outcome = runDemoSync(data, memories, state.sync, direction, false, true);
+          dispatch({ type: "notion/syncDone", outcome });
           dispatch({
             type: "notion/serverStatus",
             status: {
               available: false,
+              mode: "offline",
               reason: "NOTION NOT CONNECTED — no credentials configured. No records were sent to Notion.",
-              checkedAt: new Date().toISOString(),
+              action: "Set NOTION_API_KEY (and NOTION_PARENT_PAGE_ID) on the server, or NEXUS_MOCK_NOTION=1 for demo mode.",
+              checkedAt: at,
             },
           });
-        } else if (breach) {
-          dispatch({
-            type: "notion/serverStatus",
-            status: {
-              available: false,
-              reason: "Notion connection temporarily unavailable. Local operational state is preserved.",
-              checkedAt: new Date().toISOString(),
-            },
-          });
+          return outcome;
         }
-        return outcome;
+
+        try {
+          let pushResults: Awaited<ReturnType<typeof pushToNotion>>["results"] = [];
+          let pulled: SyncOutcome["pulled"] = [];
+
+          if (direction !== "pull") {
+            const pushed = await pushToNotion(mapDataToRows(data, memories));
+            pushResults = pushed.results ?? [];
+            // Attach the returned page ids to local records (traceability).
+            const { data: traced, traced: count } = attachNotionTraces(data, pushResults, pushed.syncedAt ?? at);
+            if (count > 0) dispatch({ type: "data/replace", data: traced });
+            if (pushed.error) {
+              dispatch({ type: "notion/syncFail", error: `${pushed.error.reason} ${pushed.error.action}` });
+            }
+          }
+
+          if (direction !== "push") {
+            // Real READ + reconcile: apply Notion-side edits onto local records.
+            const read = await readFromNotion();
+            if (read.ok) {
+              const { data: reconciled, applied } = applyNotionRead(data, read.databases);
+              pulled = appliedReadsToPulled(applied);
+              if (applied.length) dispatch({ type: "data/replace", data: reconciled });
+            }
+            // Pull log (changes made inside Notion) supplements the read. If the
+            // read already applied changes, keep both views consistent.
+            const pulledLog = await pullFromNotion().catch(() => null);
+            if (pulledLog?.ok && !pulled.length && pulledLog.updated.length) {
+              pulled = pulledLog.updated.map((u) => ({ database: u.database, entityId: u.entityId, entityLabel: u.entityId, fields: u.fields }));
+            }
+          }
+
+          const outcome = buildRealSync(state.sync, { pushResults, pulled, syncedAt: at, mock });
+          dispatch({ type: "notion/syncDone", outcome });
+          return outcome;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Notion connection temporarily unavailable.";
+          dispatch({ type: "notion/syncFail", error: message });
+          const outcome = runDemoSync(data, memories, state.sync, direction, true, true);
+          dispatch({ type: "notion/syncDone", outcome });
+          return outcome;
+        }
       },
-      registerMemory: (entry) =>
-        dispatch({ type: "memory/add", entry: { ...entry, id: uid("mem"), capturedAt: nowIso(), sourceType: sourceForMode } }),
+      registerMemory: (entry) => {
+        const created: MemoryEntry = { ...entry, id: uid("mem"), capturedAt: nowIso(), sourceType: sourceForMode };
+        dispatch({ type: "memory/add", entry: created });
+        if (notionConnected) {
+          void (async () => {
+            try {
+              const rows = mapDataToRows(data, [created, ...memories]);
+              const pushed = await pushToNotion({ knowledge: rows.knowledge.slice(0, 1) });
+              const result = pushed.results.find((r) => r.key === "knowledge" && r.entityId === created.id);
+              if (result && result.status !== "failed" && result.pageId) {
+                dispatch({ type: "memory/notion", id: created.id, pageId: result.pageId, at: pushed.syncedAt ?? nowIso() });
+                dispatch({ type: "activity/push", event: activity("sync", `Knowledge record synced to Notion`, `page ${result.pageId.slice(0, 8)} · ${pushed.mock ? "DEMO transport" : "live API"}`, [{ kind: "knowledge", id: created.id, label: created.title }]) });
+              }
+            } catch {
+              /* memory stays local; sync is retried on the next full sync */
+            }
+          })();
+        }
+      },
       generateReport: () => {
         const report = generateEventReport(data, memories);
         dispatch({ type: "report/set", report });

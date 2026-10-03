@@ -8,20 +8,35 @@ import { NOTION_DATABASES, type NotionDatabaseDef } from "./schema";
  *
  * SECURITY: this module NEVER sees the Notion token. All authenticated calls
  * happen inside the Vite/dev server middleware (`server/notionPlugin.ts`) which
- * reads `NOTION_TOKEN` from the server environment (never a `VITE_` variable,
- * so it is never inlined into the client bundle).
+ * reads `NOTION_API_KEY` (or `NOTION_TOKEN`) from the server environment (never
+ * a `VITE_` variable, so it is never inlined into the client bundle).
  *
  * Every call fails soft: if the proxy is missing, unauthenticated or the
  * network is down, the promise resolves to an "unavailable" shape and the app
  * stays on its local operational state (see DataContext `syncNotion`).
  */
 
+export interface NotionErrorInfo {
+  code: number | string;
+  reason: string;
+  action: string;
+}
+
 export interface NotionServerStatus {
   available: boolean;
+  /** True when the server is running the deterministic mock transport. */
+  mock?: boolean;
+  /** "live" | "mock" | "offline" */
+  mode?: "live" | "mock" | "offline";
   workspaceName?: string;
   botName?: string;
   botId?: string;
+  parentPageId?: string | null;
   reason?: string;
+  action?: string;
+  error?: NotionErrorInfo;
+  databases?: { key: string; name: string; mapped: boolean; databaseId: string | null }[];
+  lastSyncAt?: string | null;
   checkedAt: string;
 }
 
@@ -38,7 +53,8 @@ export interface ProvisionRequest {
 
 export interface ProvisionResult {
   ok: boolean;
-  databases: { key: string; id: string; name: string; created: boolean }[];
+  mock?: boolean;
+  databases: { key: string; id: string; name: string; created: boolean; error?: string }[];
   message?: string;
 }
 
@@ -48,18 +64,51 @@ export interface PushRequest {
   rows: Record<string, Record<string, unknown>[]>;
 }
 
+export interface PushRowResult {
+  database: string;
+  key: string;
+  entityId: string;
+  status: "created" | "updated" | "failed";
+  pageId?: string;
+  databaseId?: string;
+  error?: string;
+}
+
 export interface PushResult {
   ok: boolean;
+  mock?: boolean;
   created: number;
   updated: number;
   failed: number;
+  results: PushRowResult[];
+  syncedAt?: string | null;
+  error?: NotionErrorInfo;
+  message?: string;
+}
+
+export interface ReadDatabaseResult {
+  key: string;
+  name: string;
+  databaseId: string;
+  rows: Record<string, unknown>[];
+  error?: NotionErrorInfo;
+}
+
+export interface ReadResult {
+  ok: boolean;
+  mock?: boolean;
+  databases: ReadDatabaseResult[];
+  error?: NotionErrorInfo;
   message?: string;
 }
 
 export interface PullResult {
   ok: boolean;
+  mock?: boolean;
   /** Per-database, the external id → changed-field map reported by Notion. */
   updated: { database: string; entityId: string; fields: string[] }[];
+  syncedAt?: string | null;
+  error?: NotionErrorInfo;
   message?: string;
 }
 
@@ -93,7 +142,10 @@ export async function getNotionStatus(): Promise<NotionServerStatus> {
   } catch (err) {
     return {
       available: false,
+      mock: false,
+      mode: "offline",
       reason: err instanceof Error ? err.message : "Notion proxy unreachable",
+      action: "Make sure the dev server is running so the /api/notion proxy is available.",
       checkedAt: new Date().toISOString(),
     };
   }
@@ -110,12 +162,17 @@ export async function provisionNotionDatabases(req: ProvisionRequest): Promise<P
   return request<ProvisionResult>("/provision", { method: "POST", body: JSON.stringify(req) });
 }
 
-/** Step 4 (APP → NOTION) — upsert domain rows into the mapped databases. */
+/** NOTION → APP — retrieve mapped rows (with page ids) for reconciliation. */
+export async function readFromNotion(databases?: string[], limit = 50): Promise<ReadResult> {
+  return request<ReadResult>("/read", { method: "POST", body: JSON.stringify({ databases, limit }) });
+}
+
+/** APP → NOTION — upsert domain rows; returns per-row results with page ids. */
 export async function pushToNotion(rows: PushRequest["rows"]): Promise<PushResult> {
   return request<PushResult>("/push", { method: "POST", body: JSON.stringify({ direction: "app_to_notion", rows }) });
 }
 
-/** Step 4 (NOTION → APP) — detect edits made inside Notion. */
+/** NOTION → APP — detect edits made inside Notion. */
 export async function pullFromNotion(): Promise<PullResult> {
   return request<PullResult>("/pull", { method: "POST", body: JSON.stringify({ direction: "notion_to_app" }) });
 }
@@ -131,6 +188,7 @@ export function totalMappedRows(data: NexusData): number {
     data.sessions.length +
     data.tasks.length +
     data.volunteers.length +
+    data.participants.length +
     data.resources.length +
     data.dependencies.length +
     data.incidents.length +

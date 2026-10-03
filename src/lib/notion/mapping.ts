@@ -78,6 +78,16 @@ export function mapDataToRows(data: NexusData, memory: MemoryEntry[] = []): Reco
       Email: `mailto:${m.email}`,
       "Owned Tasks": data.tasks.filter((t) => t.ownerKind === "member" && t.ownerId === m.id).map((t) => t.id),
     })),
+    participants: data.participants.map((p) => ({
+      "Participant ID": p.id,
+      Name: p.name,
+      Email: `mailto:${p.email}`,
+      "Ticket Type": p.ticketType,
+      Status: p.status,
+      Session: p.sessionId ? [p.sessionId] : [],
+      Team: p.teamId ? [p.teamId] : [],
+      "Checked In At": p.checkedInAt ?? null,
+    })),
     volunteers: data.volunteers.map((v) => ({
       "Volunteer ID": v.id,
       Name: v.name,

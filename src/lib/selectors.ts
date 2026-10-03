@@ -19,6 +19,10 @@ const SEV_RANK: Record<Priority, number> = { low: 0, medium: 1, high: 2, critica
 
 export interface Kpis {
   participants: number;
+  /** How many participant records exist in the active dataset. */
+  participantRecords: number;
+  /** How many of those have checked in. */
+  checkedIn: number;
   activeVolunteers: number;
   tasksTotal: number;
   tasksCompleted: number;
@@ -43,8 +47,12 @@ export function computeKpis(data: NexusData): Kpis {
   const assignedUnits = data.resources.reduce((n, r) => n + r.assigned, 0);
   const resourceUtilization = totalResourceUnits === 0 ? 0 : (assignedUnits / totalResourceUnits) * 100;
 
+  const checkedIn = data.participants.filter((p) => p.status === "checked_in").length;
+
   return {
     participants: data.event.participantTarget,
+    participantRecords: data.participants.length,
+    checkedIn,
     activeVolunteers: data.event.volunteerPool,
     tasksTotal,
     tasksCompleted,

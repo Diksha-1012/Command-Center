@@ -31,6 +31,7 @@ export function SyncCenter() {
   };
 
   const live = connection.mode === "live" && serverStatus.available;
+  const mock = serverStatus.mode === "mock";
   const lastSync = sync.lastSyncAt ? relativeFromNow(sync.lastSyncAt, new Date().toISOString()) : "never";
 
   return (
@@ -39,7 +40,9 @@ export function SyncCenter() {
         eyebrow="Knowledge Layer"
         title="Notion Sync Center"
         description="Two-way synchronization between NEXUS operational records and the Notion knowledge layer."
-        action={live ? <BadgeTone tone="ok">NOTION CONNECTED</BadgeTone> : <BadgeTone tone="warn">NOTION NOT CONNECTED</BadgeTone>}
+        action={
+          mock ? <BadgeTone tone="warn">DEMO NOTION MODE</BadgeTone> : live ? <BadgeTone tone="ok">NOTION CONNECTED</BadgeTone> : <BadgeTone tone="warn">NOTION NOT CONNECTED</BadgeTone>
+        }
       />
 
       {!live ? (
@@ -53,6 +56,11 @@ export function SyncCenter() {
           onRetry={() => void refreshServerStatus()}
           retrying={connection.checking}
         />
+      ) : mock ? (
+        <Notice tone="warn" title="DEMO NOTION MODE">
+          The server is running the deterministic mock transport (NEXUS_MOCK_NOTION). READ/WRITE/UPDATE work end to end, but nothing is written to a
+          real Notion workspace. Set NOTION_API_KEY to switch to live mode.
+        </Notice>
       ) : sync.status === "error" ? (
         <ErrorBlock
           title="Notion sync failed"
@@ -85,7 +93,11 @@ export function SyncCenter() {
                 {live ? serverStatus.workspaceName ?? connection.workspaceName : "NOTION NOT CONNECTED"}
               </div>
               <div className="mt-1 text-[10px] text-slate-500">
-                {live ? `integration: ${serverStatus.botName ?? "NEXUS"}` : "no credentials configured · no sync will occur"}
+                {mock
+                  ? "mock transport · no real workspace is written"
+                  : live
+                    ? `integration: ${serverStatus.botName ?? "NEXUS"}`
+                    : "no credentials configured · no sync will occur"}
               </div>
             </div>
             <div className="rounded-xl border border-white/8 bg-white/3 p-3">

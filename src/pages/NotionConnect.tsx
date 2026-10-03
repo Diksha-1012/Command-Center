@@ -48,13 +48,20 @@ export function NotionConnect() {
   }, []);
 
   const liveReady = serverStatus.available;
+  const isMock = serverStatus.mode === "mock";
   const goStep = (n: 1 | 2 | 3 | 4 | 5) => patchConnection({ step: n });
 
   const handleConnect = async () => {
     const status = await refreshServerStatus();
     if (status.available) {
+      // A verified connection — real (live) or the deterministic demo transport.
       connectNotion("live");
-      patchConnection({ mode: "live", workspaceName: status.workspaceName ?? connection.workspaceName, workspaceIcon: "◼️", step: 2 });
+      patchConnection({
+        mode: "live",
+        workspaceName: status.workspaceName ?? connection.workspaceName,
+        workspaceIcon: status.mode === "mock" ? "🧪" : "◼️",
+        step: 2,
+      });
     } else {
       connectNotion("demo");
       patchConnection({ mode: "demo", step: 2 });
@@ -75,7 +82,15 @@ return (
         eyebrow="Knowledge Layer"
         title="Notion Connection Wizard"
         description="NEXUS uses Notion as its durable operational data layer — real API integration when credentials are configured, with a clearly labelled demo fallback."
-        action={connection.mode === "live" ? <BadgeTone tone="ok">LIVE NOTION CONNECTION</BadgeTone> : <DemoTag label="DEMO DATA" />}
+        action={
+          isMock ? (
+            <BadgeTone tone="warn">DEMO NOTION MODE</BadgeTone>
+          ) : connection.mode === "live" ? (
+            <BadgeTone tone="ok">LIVE NOTION CONNECTION</BadgeTone>
+          ) : (
+            <DemoTag label="DEMO DATA" />
+          )
+        }
       />
 
       <div className="flex flex-wrap gap-1.5">
@@ -115,8 +130,10 @@ return (
             {step === 1 ? (
               <ConnectStep
                 live={liveReady}
+                mock={isMock}
                 checking={connection.checking}
                 reason={serverStatus.reason}
+                action={serverStatus.action}
                 workspace={connection.workspaceName}
                 onConnect={handleConnect}
                 onRetry={() => void refreshServerStatus()}
@@ -191,11 +208,13 @@ return (
 /* ------------------------------ step 1 -------------------------------- */
 
 function ConnectStep({
-  live, checking, reason, workspace, onConnect, onRetry,
+  live, mock, checking, reason, action, workspace, onConnect, onRetry,
 }: {
   live: boolean;
+  mock: boolean;
   checking: boolean;
   reason?: string;
+  action?: string;
   workspace: string;
   onConnect: () => void;
   onRetry: () => void;
@@ -204,23 +223,28 @@ function ConnectStep({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/8 bg-white/3 p-3">
         <div className="flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-xl border border-white/12 bg-white/6 text-lg">◻️</span>
+          <span className="grid h-10 w-10 place-items-center rounded-xl border border-white/12 bg-white/6 text-lg">{mock ? "🧪" : "◻️"}</span>
           <div>
             <div className="text-sm text-slate-200">{live ? workspace : "Kinetex Ops (Demo Workspace)"}</div>
             <div className="flex items-center gap-2 text-[11px] text-slate-500">
               <StatusDot tone={live ? "ok" : "warn"} />
-              {live ? "Server proxy verified · live mode available" : "No server credentials detected"}
+              {mock ? "DEMO transport verified · no real workspace" : live ? "Server proxy verified · live mode available" : "No server credentials detected"}
             </div>
           </div>
         </div>
-        <BadgeTone tone={live ? "ok" : "warn"}>{live ? "LIVE AVAILABLE" : "DEMO FALLBACK"}</BadgeTone>
+        <BadgeTone tone={live ? (mock ? "warn" : "ok") : "warn"}>{mock ? "DEMO NOTION MODE" : live ? "LIVE AVAILABLE" : "DEMO FALLBACK"}</BadgeTone>
       </div>
 
       {!live ? (
         <Notice tone="warn" title="Live Notion is not configured">
-          {reason ?? "NOTION_TOKEN is not set on the server."} You can still complete the wizard in demo mode — the flow, databases,
-          relations and sync accounting are identical, but the data source is labelled <strong>DEMO DATA</strong> and is never
-          presented as live synchronization.
+          {reason ?? "NOTION_API_KEY is not set on the server."}{action ? ` ${action}` : ""} You can still complete the wizard in demo mode — the
+          flow, databases, relations and sync accounting are identical, but the data source is labelled <strong>DEMO DATA</strong> and is
+          never presented as live synchronization.
+        </Notice>
+      ) : mock ? (
+        <Notice tone="warn" title="DEMO NOTION MODE">
+          The server has <strong>NEXUS_MOCK_NOTION</strong> enabled, so READ/WRITE/UPDATE run against a deterministic in-memory transport — not a
+          real workspace. Every response is labelled DEMO. Add a real <strong>NOTION_API_KEY</strong> to switch to live mode.
         </Notice>
       ) : (
         <Notice tone="ok" title="Live connection detected">
@@ -232,7 +256,7 @@ function ConnectStep({
       <div className="flex flex-wrap gap-2">
         <Button variant={live ? "primary" : "ai"} onClick={onConnect} disabled={checking}>
           {checking ? <Loader2 size={14} className="animate-spin" /> : <Link2 size={14} />}
-          {live ? "Connect Notion (Live)" : "Connect Notion (Demo)"}
+          {live ? (mock ? "Connect Notion (Demo transport)" : "Connect Notion (Live)") : "Connect Notion (Demo)"}
         </Button>
         <Button variant="ghost" onClick={onRetry} disabled={checking}>
           <RefreshCw size={13} className={checking ? "animate-spin" : ""} /> Re-check server

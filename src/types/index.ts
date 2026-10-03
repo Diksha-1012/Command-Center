@@ -40,6 +40,28 @@ export type RecordSource = "demo" | "live" | "notion";
  */
 export interface Sourced {
   sourceType?: RecordSource;
+  /**
+   * SOURCE TRACEABILITY (Notion integration). Present on any record that has
+   * been synchronized with a real Notion workspace, so the UI can show
+   * `SOURCE: NOTION` and the sync engine can address the same page on updates.
+   */
+  notion?: NotionTrace;
+}
+
+/** Per-record Notion synchronization metadata. */
+export type NotionSyncStatus = "never" | "pending" | "synced" | "failed";
+
+export interface NotionTrace {
+  /** Notion page id (the durable handle used for subsequent updates). */
+  notionPageId?: string;
+  /** Notion database id the page lives in. */
+  notionDatabaseId?: string;
+  /** ISO timestamp of the last successful write/read for this record. */
+  lastSyncedAt?: string;
+  /** Current synchronization state of this record. */
+  syncStatus?: NotionSyncStatus;
+  /** Which side is authoritative: a Notion-originated record or a NEXUS one. */
+  source?: "notion" | "nexus";
 }
 
 export type Severity = "critical" | "warning" | "info";
@@ -60,6 +82,7 @@ export type EntityKind =
   | "team"
   | "member"
   | "volunteer"
+  | "participant"
   | "task"
   | "resource"
   | "communication"

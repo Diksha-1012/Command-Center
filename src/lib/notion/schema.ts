@@ -155,6 +155,23 @@ export const NOTION_DATABASES: NotionDatabaseDef[] = [
     ],
   },
   {
+    key: "participants",
+    name: "NEXUS Participants",
+    icon: "🎟️",
+    mappedEntity: "participant",
+    primaryKey: "Participant ID",
+    properties: [
+      { name: "Name", type: "title" },
+      { name: "Participant ID", type: "rich_text" },
+      { name: "Email", type: "url" },
+      { name: "Ticket Type", type: "select" },
+      { name: "Status", type: "status", options: ["registered", "checked_in", "no_show", "cancelled"] },
+      { name: "Session", type: "relation", relationTo: "sessions", relation: "one" },
+      { name: "Team", type: "relation", relationTo: "teams", relation: "one" },
+      { name: "Checked In At", type: "date" },
+    ],
+  },
+  {
     key: "volunteers",
     name: "NEXUS Volunteers",
     icon: "🙋",

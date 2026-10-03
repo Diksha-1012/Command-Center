@@ -190,7 +190,7 @@ export function Overview() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <KpiCard label="Total Participants" value={kpis.participants.toLocaleString()} sub="Registered attendees" icon={<Users2 size={16} />} tone="blue" />
+        <KpiCard label="Total Participants" value={kpis.participants.toLocaleString()} sub={kpis.participantRecords > 0 ? `${kpis.participantRecords} records · ${kpis.checkedIn} checked in` : "Registered attendees"} icon={<Users2 size={16} />} tone="blue" />
         <KpiCard label="Active Volunteers" value={kpis.activeVolunteers} sub={`${data.volunteers.filter((v) => v.status === "assigned").length} on shift now`} icon={<Users2 size={16} />} tone="ok" />
         <KpiCard
           label="Tasks"

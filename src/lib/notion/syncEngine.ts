@@ -10,6 +10,8 @@ import type {
 } from "@/types";
 import { NOTION_DATABASES } from "./schema";
 import { mapDataToRows } from "./mapping";
+import type { PushRowResult } from "./client";
+import type { AppliedRead } from "./readTransform";
 
 /**
  * NEXUS NOTION SYNC ENGINE (Part 3)
@@ -163,6 +165,122 @@ export function runDemoSync(
 
 function findDb(key: string) {
   return NOTION_DATABASES.find((d) => d.key === key)!;
+}
+
+/**
+ * Build the honest sync state from a REAL Notion operation.
+ * `pushResults` / `pulled` come from the server proxy; nothing here is invented.
+ * When `mock` is true the server ran the deterministic demo transport, so the
+ * state is labelled accordingly and never presented as live synchronization.
+ */
+export function buildRealSync(
+  prev: NotionSyncState,
+  opts: {
+    pushResults?: PushRowResult[];
+    pulled?: { database: string; entityId: string; entityLabel: string; fields: string[] }[];
+    syncedAt: string;
+    mock: boolean;
+    error?: string;
+  },
+): SyncOutcome {
+  const byKey = new Map<string, { rows: number; synced: number; failed: number }>();
+  for (const r of opts.pushResults ?? []) {
+    const cur = byKey.get(r.key) ?? { rows: 0, synced: 0, failed: 0 };
+    cur.rows += 1;
+    if (r.status === "failed") cur.failed += 1;
+    else cur.synced += 1;
+    byKey.set(r.key, cur);
+  }
+
+  const databases: DatabaseSyncState[] = NOTION_DATABASES.map((d) => {
+    const agg = byKey.get(d.key);
+    return {
+      id: d.key,
+      name: d.name,
+      icon: d.icon,
+      mappedEntity: d.mappedEntity,
+      rows: agg?.rows ?? 0,
+      synced: agg?.synced ?? 0,
+      failed: agg?.failed ?? 0,
+      lastSyncedAt: agg ? opts.syncedAt : null,
+    };
+  });
+
+  const ops: SyncOp[] = [];
+  for (const r of opts.pushResults ?? []) {
+    ops.push({
+      id: `op-${r.key}-${r.entityId}-${ops.length}`,
+      at: opts.syncedAt,
+      direction: "app_to_notion",
+      database: r.database,
+      entityKind: (findDb(r.key)?.mappedEntity ?? "task") as SyncOp["entityKind"],
+      entityId: r.entityId,
+      entityLabel: r.entityId,
+      op: r.status === "created" ? "create" : r.status === "updated" ? "update" : "conflict",
+      fields: r.pageId ? [`page:${r.pageId.slice(0, 8)}`] : [],
+    });
+  }
+  for (const p of opts.pulled ?? []) {
+    ops.push({
+      id: `op-pull-${p.entityId}-${ops.length}`,
+      at: opts.syncedAt,
+      direction: "notion_to_app",
+      database: p.database,
+      entityKind: "task",
+      entityId: p.entityId,
+      entityLabel: p.entityLabel ?? p.entityId,
+      op: "update",
+      fields: p.fields,
+    });
+  }
+
+  const created = (opts.pushResults ?? []).filter((r) => r.status === "created").length;
+  const updated = (opts.pushResults ?? []).filter((r) => r.status === "updated").length;
+  const failed = (opts.pushResults ?? []).filter((r) => r.status === "failed").length;
+  const recordsSynced = created + updated;
+
+  const log: SyncLogEntry[] = [
+    {
+      id: `log-${opts.syncedAt}`,
+      at: opts.syncedAt,
+      level: (failed > 0 ? "warn" : "info") as SyncLogEntry["level"],
+      message: opts.mock
+        ? `DEMO NOTION MODE — ${created} created · ${updated} updated via the local mock transport (no real workspace was written).`
+        : `Sync completed · ${created} created · ${updated} updated${failed ? ` · ${failed} failed` : ""}.`,
+    },
+    ...(opts.pulled?.length
+      ? [
+          {
+            id: `log-${opts.syncedAt}-pull`,
+            at: opts.syncedAt,
+            level: "info" as const,
+            message: `${opts.pulled.length} change(s) pulled from Notion → app state reconciled.`,
+          },
+        ]
+      : []),
+    ...prev.log,
+  ].slice(0, 24);
+
+  return {
+    sync: {
+      status: opts.error ? "error" : "success",
+      health: failed > 0 || opts.error ? "warning" : "healthy",
+      lastSyncAt: opts.syncedAt,
+      stats: { created, updated, failed, pending: 0, recordsSynced },
+      databases,
+      recentOps: [...ops, ...prev.recentOps].slice(0, 60),
+      log,
+      error: opts.error ?? (failed > 0 ? `${failed} record(s) failed to write. Local operational state is preserved.` : null),
+    },
+    ops,
+    pulled: opts.pulled ?? [],
+    simulated: opts.mock,
+  };
+}
+
+/** Convert applied Notion reads into the `pulled` shape the store reconciles. */
+export function appliedReadsToPulled(applied: AppliedRead[]): SyncOutcome["pulled"] {
+  return applied.map((a) => ({ database: a.database, entityId: a.entityId, entityLabel: a.entityLabel, fields: a.fields }));
 }
 
 function buildOps(

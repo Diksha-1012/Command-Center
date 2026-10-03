@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, GitBranch, MapPin, Plus, Siren, User } from "lucide-react";
+import { ArrowRight, Database, GitBranch, MapPin, Plus, Siren, User } from "lucide-react";
 import { useNexus } from "@/store/DataContext";
 import { analyzeImpact } from "@/lib/impactAnalyzer";
 import { BadgeTone, Button, Panel, PanelHeader, SectionTitle, StatusDot, Tabs } from "@/components/ui/primitives";
@@ -181,6 +181,15 @@ export function Incidents() {
                       <span className="text-sm font-medium text-slate-100">{inc.title}</span>
                       <BadgeTone tone={SEV_TONE[inc.severity]}>{inc.severity.toUpperCase()}</BadgeTone>
                       <BadgeTone tone={STATUS_TONE[inc.status]}>{inc.status}</BadgeTone>
+                      {inc.notion?.notionPageId ? (
+                        <span title={`Notion page ${inc.notion.notionPageId}`} className="inline-flex items-center gap-1 rounded-full border border-sky-400/30 bg-sky-500/12 px-2 py-0.5 text-[10px] font-semibold text-sky-300">
+                          <Database size={9} /> Notion: ✓ Synced
+                        </span>
+                      ) : inc.notion?.syncStatus === "failed" ? (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-rose-400/30 bg-rose-500/12 px-2 py-0.5 text-[10px] font-semibold text-rose-300">
+                          <Database size={9} /> Notion: failed
+                        </span>
+                      ) : null}
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
                       <span className="inline-flex items-center gap-1"><MapPin size={11} /> {inc.location}</span>

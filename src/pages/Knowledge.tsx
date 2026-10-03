@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Brain, Database, Plug, Plus, RefreshCw } from "lucide-react";
+import { Brain, Database, Plug, Plus, RefreshCw, Save } from "lucide-react";
 import { useNexus } from "@/store/DataContext";
 import { MEMORY_KIND_META } from "@/lib/memory";
 import { NOTION_RELATION_COUNT } from "@/lib/notion/schema";
@@ -22,8 +22,9 @@ import type { MemoryKind } from "@/types";
 const MEMORY_KINDS: MemoryKind[] = ["lesson", "incident", "decision", "workflow_success", "workflow_failure", "note"];
 
 export function Knowledge() {
-  const { data, memories, registerMemory } = useNexus();
+  const { data, memories, registerMemory, notionConnected, syncNotion } = useNexus();
   const navigate = useNavigate();
+  const [saving, setSaving] = useState(false);
 
   const [filter, setFilter] = useState<MemoryKind | "all">("all");
   const [draft, setDraft] = useState({ title: "", body: "", kind: "lesson" as MemoryKind, source: "Post-event report" });
@@ -45,6 +46,18 @@ export function Knowledge() {
     });
     setDraft({ title: "", body: "", kind: "lesson", source: "Post-event report" });
     setShowForm(false);
+  };
+
+  // SAVE TO KNOWLEDGE → CREATE/UPDATE NOTION KNOWLEDGE RECORD. Only claims a
+  // sync when a real (or explicitly mock) connection is verified.
+  const saveToNotion = async () => {
+    if (!notionConnected) {
+      navigate("/notion");
+      return;
+    }
+    setSaving(true);
+    await syncNotion("push");
+    setSaving(false);
   };
 
   return (
@@ -79,9 +92,14 @@ export function Knowledge() {
             subtitle="Lessons, decisions and workflows captured from the event"
             icon={<Brain size={14} />}
             action={
-              <Button size="sm" variant="ai" onClick={() => setShowForm((s) => !s)}>
-                <Plus size={13} /> Capture
-              </Button>
+              <div className="flex gap-2">
+                <Button size="sm" variant="ai" onClick={() => setShowForm((s) => !s)}>
+                  <Plus size={13} /> Capture
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => void saveToNotion()} disabled={saving} title={notionConnected ? "Create/update the Notion Knowledge record" : "Connect Notion to enable this"}>
+                  {saving ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />} Save to Knowledge → Notion
+                </Button>
+              </div>
             }
           />
 
@@ -174,7 +192,15 @@ export function Knowledge() {
                   {m.date ? <span className="rounded-md border border-white/10 bg-white/4 px-1.5 py-0.5">DATE: {m.date.slice(0, 10)}</span> : null}
                   <span className="rounded-md border border-white/10 bg-white/4 px-1.5 py-0.5">SOURCE: {m.source}</span>
                   {m.reusable ? <BadgeTone tone="ok">reusable</BadgeTone> : null}
-                  {m.notionPageId ? <span className="inline-flex items-center gap-1"><Database size={9} /> notion:{m.notionPageId}</span> : null}
+                  {m.notionPageId ? (
+                    <span className="inline-flex items-center gap-1 rounded-md border border-sky-400/30 bg-sky-500/12 px-1.5 py-0.5 text-sky-300">
+                      <Database size={9} /> Notion: ✓ Synced · SOURCE: NOTION
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/4 px-1.5 py-0.5 text-slate-400">
+                      SOURCE: NEXUS
+                    </span>
+                  )}
                   <span>captured {relativeFromNow(m.capturedAt, "2026-11-15T14:20:00")}</span>
                 </div>
                 {m.related.length ? (
