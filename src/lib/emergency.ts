@@ -3,6 +3,8 @@ import type {
   DependencyGraph,
   EntityKind,
   EntityRef,
+  Incident,
+  MemoryEntry,
   NexusData,
   RecommendedAction,
   RiskFinding,
@@ -126,5 +128,56 @@ export function runEmergencySimulation(
     chain,
     affectedRefs,
     aiExplanation,
+  };
+}
+
+/**
+ * The incident a resolved emergency produces. Applying the signature scenario
+ * is a real operational event, so NEXUS opens a critical incident (rather than
+ * only mutating session records) — the Incident Center then carries its
+ * timeline and blast radius.
+ */
+export function emergencyIncident(result: EmergencyResult, ownerId: string, reportedBy: string): Omit<Incident, "id" | "timestamp"> {
+  const chainSummary = result.chain
+    .filter((c) => c.count > 0)
+    .map((c) => `${c.count} ${c.label.toLowerCase()}`)
+    .join(", ");
+  return {
+    title: `${result.venue.label} unavailable — ${result.requests.length} session${result.requests.length === 1 ? "" : "s"} relocated`,
+    severity: "critical",
+    location: result.venue.label,
+    reportedBy,
+    ownerId,
+    status: "open",
+    relatedSessionId: result.requests[0]?.subjectId,
+    notes:
+      `${result.venue.label} became unavailable and ${result.requests.length} dependent session${result.requests.length === 1 ? "" : "s"} ` +
+      `were relocated to ${result.target.label}. Dependency blast radius: ${result.affected} item${result.affected === 1 ? "" : "s"}` +
+      `${chainSummary ? ` (${chainSummary})` : ""}. Impact score ${result.impactScore}/100. ` +
+      `Created by the NEXUS emergency simulation on human approval.`,
+  };
+}
+
+/**
+ * The reusable knowledge record the emergency leaves behind — the "learn" step
+ * of the change workflow. Synced into the Notion Knowledge database on the next
+ * sync (the mapper reads from the memory store).
+ */
+export function emergencyMemory(result: EmergencyResult): Omit<MemoryEntry, "id" | "capturedAt"> {
+  const lesson =
+    result.actions.find((a) => a.kind === "procure" || a.kind === "reschedule")?.title ??
+    "Maintain alternate-venue readiness and a pre-verified AV checklist for the main stage.";
+  return {
+    kind: "incident",
+    title: `${result.venue.label} venue change — ${result.requests.length} session${result.requests.length === 1 ? "" : "s"} relocated`,
+    body:
+      `Problem: ${result.venue.label} became unavailable. ` +
+      `Impact: ${result.chain.filter((c) => c.count > 0).map((c) => `${c.count} ${c.label.toLowerCase()}`).join(", ")}. ` +
+      `Resolution: relocated ${result.requests.length} session${result.requests.length === 1 ? "" : "s"} to ${result.target.label} and queued the dependent task, resource and communication updates. ` +
+      `Lesson: ${lesson}`,
+    source: "Emergency simulation",
+    tags: ["venue", "incident", "relocation"],
+    related: [result.venue, result.target, ...result.affectedRefs].slice(0, 8),
+    reusable: true,
   };
 }

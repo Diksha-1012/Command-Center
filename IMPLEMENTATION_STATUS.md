@@ -50,6 +50,8 @@ server-side Notion proxy.
 
 | Item | Problem | Resolution |
 | --- | --- | --- |
+| **Signature emergency UI orphaned** | `EmergencySimulation.tsx` and `runEmergencySimulation` were fully built but **never imported or rendered anywhere** — the dedicated "Main Auditorium unavailable" scene had no entry point in the app. | Rendered it from the Command Center behind a prominent **Run emergency simulation** button; the modal now snapshots its analysis on open so applying the change does not blank the flow. |
+| **Incident + knowledge not created on apply** | The signature scenario's APPLY relocated sessions and queued a sync, but never opened the incident (steps 17–18) or captured the reusable knowledge record (steps 19–20) the challenge requires. | `emergencyIncident()` / `emergencyMemory()` now run on approval: a critical incident with the full blast radius and a reusable knowledge memory are created, with links to the Incident Center and Knowledge views. |
 | Task creation | Store already exposed `createTask`, but the Tasks page disabled the "New task" button behind a `COMING NEXT — PART 2` label. | Wired up a full create-task drawer using the existing `createTask` action. |
 | Demo reset | Settings' "Reset demo dataset" called `window.location.reload()` even though the store exposes `resetDemo()`. | Wired the button to `resetDemo()` so the dataset resets in place. |
 | Stale placeholders | `COMING NEXT — LLM BACKEND/LLM NARRATIVE/AI ALLOCATION/PERSISTENCE` labels contradicted implemented features. | Replaced with accurate status badges and copy. |
@@ -65,11 +67,13 @@ These are genuinely not implemented and are honestly labelled where surfaced:
 
 ## 4. Recommended implementation order (executed)
 
-1. Wire `createTask` → Tasks page form.
-2. Wire `resetDemo` → Settings.
-3. Correct stale status labels across Copilot, Impact Simulator, Volunteers, Tasks, Settings.
-4. Update README.
-5. Re-run `npm run typecheck` and `npm run build`.
+1. Wire the orphaned `EmergencySimulation` into the Command Center.
+2. Create the incident + knowledge record on emergency approval.
+3. Wire `createTask` → Tasks page form.
+4. Wire `resetDemo` → Settings.
+5. Correct stale status labels across Copilot, Impact Simulator, Volunteers, Tasks, Settings.
+6. Update README.
+7. Re-run `npm run typecheck` and `npm run build`.
 
 ## 5. Verification
 

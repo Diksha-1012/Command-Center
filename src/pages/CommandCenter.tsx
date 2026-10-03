@@ -11,6 +11,7 @@ import { Avatar, BadgeTone, Button, Panel, PanelHeader, ProgressBar, SectionTitl
 import { AlertCard } from "@/components/domain/AlertCard";
 import { SessionDrawer } from "@/components/domain/SessionDrawer";
 import { RiskMap } from "@/components/domain/RiskMap";
+import { EmergencySimulation } from "@/components/domain/EmergencySimulation";
 import { StackedBar } from "@/components/ui/charts";
 import { relativeFromNow, timeOf } from "@/lib/format";
 import { cn } from "@/lib/cn";
@@ -21,6 +22,7 @@ export function CommandCenter() {
   const navigate = useNavigate();
   const [openSessionId, setOpenSessionId] = useState<string | null>(null);
   const [whyTeam, setWhyTeam] = useState<string | null>(null);
+  const [emergencyOpen, setEmergencyOpen] = useState(false);
 
   const pulse = operationalPulse(data);
   const alerts = activeAlerts(data);
@@ -67,12 +69,15 @@ export function CommandCenter() {
         title="Command Center"
         description="Everything happening right now, ranked by what will break next."
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="ghost" onClick={acknowledgeAll}>
               <CheckCircle2 size={14} /> Acknowledge all
             </Button>
-            <Button size="sm" variant="ai" onClick={() => navigate("/impact")}>
-              <Activity size={14} /> Run impact sim
+            <Button size="sm" variant="outline" onClick={() => navigate("/impact")}>
+              <Activity size={14} /> Impact Simulator
+            </Button>
+            <Button size="sm" variant="ai" onClick={() => setEmergencyOpen(true)} title="Run the signature Main Auditorium unavailable scenario">
+              <ShieldAlert size={14} /> Run emergency simulation
             </Button>
           </div>
         }
@@ -337,6 +342,7 @@ export function CommandCenter() {
       </div>
 
       <SessionDrawer session={openSession} data={data} open={!!openSession} onClose={() => setOpenSessionId(null)} onSelectTask={() => navigate("/tasks")} />
+      <EmergencySimulation open={emergencyOpen} onClose={() => setEmergencyOpen(false)} />
     </div>
   );
 }

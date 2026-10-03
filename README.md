@@ -116,15 +116,20 @@ explanation with verified source records. Only **Apply change** mutates the stor
 
 ## Demo scenario (3-minute pitch)
 
-1. Open **Impact Simulator**.
-2. Choose **Change venue** → subject **Hackathon Final Pitch** → new venue **Innovation Hall**.
-3. Click **Simulate impact** → ~12 downstream items, impact score, direct/indirect/potential bands.
-4. Review **Before / After**, **Risks Detected** (each with its rule + reasoning), and
-   **Recommended Actions**.
-5. Click **Apply change** → the run-of-show updates, the Command Center risk map re-derives.
-6. Open **Timeline** → the approval, impact analysis, risk detection, recommendations and Notion
-   sync queue are all recorded.
-7. Open **Copilot** → ask "What happens if the auditorium changes?" then expand **Why?**
+1. Open the **Command Center** and click **Run emergency simulation** (or open the **Impact Simulator**
+   and choose **Change venue** → **Hackathon Final Pitch** → **Innovation Hall**).
+2. The emergency scene animates the dependency propagation Venue → Sessions → Speakers → Resources →
+   Volunteers → Tasks → Communications using the real impact engine.
+3. Review the **Impact score**, the AI explanation (labelled `AI GENERATED` with `VERIFIED` source
+   chips) and the recommended actions.
+4. Click **Apply changes** → sessions relocate, the run-of-show updates, a **critical incident** is
+   opened with its blast radius, and the resolution is captured as **reusable knowledge**.
+5. Jump to the **Incident Center** and **Knowledge** views from the confirmation panel.
+6. Click **Sync to Notion** → the affected records (including the incident and knowledge item) are
+   queued for write-back.
+7. Open **Timeline** / **Event Replay** → the approval, impact analysis, risk detection,
+   recommendations and Notion sync queue are all recorded.
+8. Open **Copilot** → ask "What happens if the auditorium changes?" then expand **Why?**
 
 ## Honesty contracts
 

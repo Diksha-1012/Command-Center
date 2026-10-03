@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { AlertTriangle, ArrowRight, CheckCircle2, RefreshCw, ShieldAlert, Sparkles, X, Zap } from "lucide-react";
 import { useNexus } from "@/store/DataContext";
-import { runEmergencySimulation } from "@/lib/emergency";
+import { CURRENT_USER_ID } from "@/data/seed";
+import { emergencyIncident, emergencyMemory, runEmergencySimulation } from "@/lib/emergency";
 import { BadgeTone, Button } from "@/components/ui/primitives";
 import { AiBasis, VerifiedBadge } from "@/components/domain/SourceBar";
 import { cn } from "@/lib/cn";
@@ -16,11 +18,18 @@ import { cn } from "@/lib/cn";
 type Phase = "spread" | "report" | "review" | "applying" | "applied";
 
 export function EmergencySimulation({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { data, graph, risk, applyChangeRequests, syncNotion } = useNexus();
-  const result = useMemo(() => runEmergencySimulation(data, graph, risk), [data, graph, risk]);
+  const { data, graph, risk, applyChangeRequests, createIncident, registerMemory, syncNotion } = useNexus();
 
+  // Snapshot the analysis when the modal opens so that APPLYING the change (which
+  // mutates the store) does not recompute the blast radius to nothing mid-flow.
+  const [result, setResult] = useState<Emergency | null>(null);
   const [phase, setPhase] = useState<Phase>("spread");
   const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    if (open) setResult(runEmergencySimulation(data, graph, risk));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   useEffect(() => {
     if (!open || !result) return;
@@ -44,11 +53,36 @@ export function EmergencySimulation({ open, onClose }: { open: boolean; onClose:
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  if (!open || !result) return null;
+  if (!open) return null;
+
+  if (!result) {
+    return (
+      <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-ink-950/85 p-3 backdrop-blur-md sm:p-6">
+        <div className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-emerald-400/25 bg-ink-900/95 p-6 text-center shadow-2xl animate-rise">
+          <CheckCircle2 size={26} className="mx-auto text-emerald-300" />
+          <h2 className="mt-3 text-base font-semibold text-slate-100">No sessions left in the main venue</h2>
+          <p className="mt-1.5 text-xs leading-relaxed text-slate-400">
+            Every session that depended on the main auditorium has already been relocated. Reset the demo dataset from
+            Settings to run the signature scenario again.
+          </p>
+          <div className="mt-4 flex justify-center gap-2">
+            <Button variant="outline" onClick={onClose}>
+              Close
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const apply = async () => {
     setPhase("applying");
     applyChangeRequests(result.requests, `${result.venue.label} → ${result.target.label}`);
+    // The signature scenario is a real operational event: open the incident and
+    // capture the reusable lesson, so the Incident Center and Knowledge memory
+    // reflect what just happened (and both sync to Notion on the next sync).
+    createIncident(emergencyIncident(result, CURRENT_USER_ID, CURRENT_USER_ID));
+    registerMemory(emergencyMemory(result));
     window.setTimeout(() => setPhase("applied"), 900);
   };
 
@@ -241,6 +275,7 @@ function ApplyingView() {
 }
 
 function AppliedView({ result, onSync, onClose }: { result: Emergency; onSync: () => void; onClose: () => void }) {
+  const navigate = useNavigate();
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3 rounded-2xl border border-emerald-400/25 bg-emerald-500/8 p-4">
@@ -252,6 +287,28 @@ function AppliedView({ result, onSync, onClose }: { result: Emergency; onSync: (
           </div>
         </div>
       </div>
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        <div className="rounded-xl border border-rose-400/25 bg-rose-500/8 p-3">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-rose-300">Incident opened</div>
+          <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
+            A critical incident was created with the blast radius and owner so the response is tracked end to end.
+          </p>
+          <Button size="sm" variant="outline" className="mt-2" onClick={() => { onClose(); navigate("/incidents"); }}>
+            Open Incident Center <ArrowRight size={13} />
+          </Button>
+        </div>
+        <div className="rounded-xl border border-violet-400/25 bg-violet-500/8 p-3">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-violet-300">Knowledge captured</div>
+          <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
+            The resolution and lesson were stored as reusable knowledge for the next event.
+          </p>
+          <Button size="sm" variant="outline" className="mt-2" onClick={() => { onClose(); navigate("/knowledge"); }}>
+            Open Knowledge <ArrowRight size={13} />
+          </Button>
+        </div>
+      </div>
+
       <div className="flex flex-wrap gap-2">
         <Button variant="ai" onClick={onSync}>
           <Sparkles size={14} /> Sync to Notion
