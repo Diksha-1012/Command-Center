@@ -129,7 +129,11 @@ type Action =
   | { type: "entity/delete"; collection: CollectionKey; id: string }
   | { type: "data/replace"; data: NexusData }
   | { type: "demo/reset" }
-  | { type: "live/reset" };
+  | { type: "live/reset" }
+  | { type: "demo/start" }
+  | { type: "demo/close" }
+  | { type: "demo/step"; step: number }
+  | { type: "demo/emergency"; open: boolean };
 
 interface State {
   mode: WorkspaceMode;
@@ -144,6 +148,10 @@ interface State {
   liveMemory: MemoryEntry[];
   report: EventReport | null;
   serverStatus: ServerStatus;
+  /** Guided demo walkthrough state (KBC-NOTION-03 live demo). */
+  demoActive: boolean;
+  demoStep: number;
+  emergencyOpen: boolean;
 }
 
 const initialConnection = (): NotionConnection => ({
