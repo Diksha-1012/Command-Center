@@ -48,9 +48,10 @@ export const PRIORITY_LABEL: Record<Priority, string> = {
 };
 
 export const STATUS_LABEL: Record<TaskStatus, string> = {
-  not_started: "Not Started",
+  not_started: "Pending",
   in_progress: "In Progress",
   blocked: "Blocked",
+  at_risk: "At Risk",
   completed: "Completed",
 };
 

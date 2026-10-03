@@ -38,7 +38,7 @@ export function AssignmentCard({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-violet-300">
-            <Sparkles size={11} /> {recommendation.role}
+            <Sparkles size={11} /> AI RECOMMENDATION · {recommendation.role}
           </div>
           <p className="mt-1 text-[11px] text-slate-400">{recommendation.context}</p>
         </div>

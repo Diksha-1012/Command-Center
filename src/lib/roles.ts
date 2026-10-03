@@ -24,6 +24,13 @@ export const ROLES: RoleDefinition[] = [
     memberId: "m2",
   },
   {
+    id: "volunteer_coordinator",
+    name: "Volunteer Coordinator",
+    blurb: "Own the roster: volunteer workload, coverage gaps, assignments and shifts.",
+    routes: ["/command", "/volunteers", "/teams", "/tasks", "/schedule", "/incidents", "/me", "/copilot", "/sync"],
+    memberId: "m8",
+  },
+  {
     id: "volunteer",
     name: "Volunteer",
     blurb: "Just what you need on shift: your tasks, instructions and announcements.",

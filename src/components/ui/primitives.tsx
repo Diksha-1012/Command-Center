@@ -105,6 +105,7 @@ export const statusTone: Record<TaskStatus, AccentTone> = {
   completed: "ok",
   in_progress: "blue",
   blocked: "bad",
+  at_risk: "warn",
   not_started: "neutral",
 };
 

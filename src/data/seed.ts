@@ -146,6 +146,18 @@ export const seedData: NexusData = {
     { id: "m9", name: "Capt. R. Singh", role: "Security Lead", teamId: "t-sec", email: "security@kinetex.dev", avatarTone: "warn" },
   ],
   volunteers,
+  participants: [
+    { id: "pa1", name: "Aditi Rao", email: "aditi.rao@example.com", ticketType: "Full Access", sessionId: "s-hack", teamId: "t-reg", status: "checked_in", checkedInAt: d("08:40") },
+    { id: "pa2", name: "Karan Malhotra", email: "karan.m@example.com", ticketType: "Student", sessionId: "s-ai", teamId: "t-reg", status: "checked_in", checkedInAt: d("09:05") },
+    { id: "pa3", name: "Nisha Varma", email: "nisha.v@example.com", ticketType: "Full Access", sessionId: "s-robot", teamId: "t-reg", status: "checked_in", checkedInAt: d("09:20") },
+    { id: "pa4", name: "Rehan Qureshi", email: "rehan.q@example.com", ticketType: "Student", sessionId: "s-dev", teamId: "t-reg", status: "registered" },
+    { id: "pa5", name: "Pooja Shetty", email: "pooja.s@example.com", ticketType: "VIP", sessionId: "s-startup", teamId: "t-hosp", status: "checked_in", checkedInAt: d("10:10") },
+    { id: "pa6", name: "Siddharth Jain", email: "sid.j@example.com", ticketType: "Student", sessionId: "s-cultural", teamId: "t-reg", status: "no_show" },
+    { id: "pa7", name: "Megha Pillai", email: "megha.p@example.com", ticketType: "Full Access", sessionId: "s-hack", teamId: "t-reg", status: "registered" },
+    { id: "pa8", name: "Arjun Kulkarni", email: "arjun.k@example.com", ticketType: "Student", sessionId: "s-ai", teamId: "t-reg", status: "cancelled" },
+    { id: "pa9", name: "Ritika Sen", email: "ritika.s@example.com", ticketType: "VIP", sessionId: "s-close", teamId: "t-hosp", status: "checked_in", checkedInAt: d("11:02") },
+    { id: "pa10", name: "Devika Nambiar", email: "devika.n@example.com", ticketType: "Student", sessionId: "s-dev", teamId: "t-reg", status: "registered" },
+  ],
   tasks,
   resources: [
     { id: "r1", name: "Stage Projectors (4K)", category: "Projectors", quantity: 8, available: 5, assigned: 4, location: "Main Auditorium", status: "assigned" },

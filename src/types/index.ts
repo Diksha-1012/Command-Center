@@ -45,7 +45,7 @@ export interface Sourced {
 export type Severity = "critical" | "warning" | "info";
 export type Health = "healthy" | "warning" | "critical";
 export type Priority = "low" | "medium" | "high" | "critical";
-export type TaskStatus = "not_started" | "in_progress" | "blocked" | "completed";
+export type TaskStatus = "not_started" | "in_progress" | "blocked" | "at_risk" | "completed";
 export type SessionStatus = "scheduled" | "live" | "delayed" | "completed" | "at_risk";
 export type VolunteerLoad = "underloaded" | "balanced" | "overloaded";
 export type ResourceStatus = "available" | "assigned" | "in_transit" | "maintenance";
@@ -115,6 +115,20 @@ export interface Session extends Sourced {
   notes: string;
 }
 
+export type ParticipantStatus = "registered" | "checked_in" | "no_show" | "cancelled";
+
+export interface Participant extends Sourced {
+  id: ID;
+  name: string;
+  email: string;
+  ticketType: string;
+  /** Primary session the participant is registered for. */
+  sessionId?: ID;
+  teamId?: ID;
+  status: ParticipantStatus;
+  checkedInAt?: string;
+}
+
 export interface Member extends Sourced {
   id: ID;
   name: string;
@@ -151,6 +165,15 @@ export interface Volunteer extends Sourced {
   shift: ShiftBand;
 }
 
+export interface TaskEscalation {
+  /** Who the task escalates to when blocked/at risk. */
+  escalatedTo: ID;
+  /** Why the escalation was raised. */
+  reason: string;
+  /** ISO timestamp the escalation was raised. */
+  raisedAt: string;
+}
+
 export interface Task extends Sourced {
   id: ID;
   title: string;
@@ -166,6 +189,8 @@ export interface Task extends Sourced {
   dependencyIds: ID[]; // depends on these task ids
   sessionId?: ID;
   resourceId?: ID;
+  /** Optional escalation record raised on a blocked/at-risk task. */
+  escalation?: TaskEscalation;
 }
 
 export interface ResourceItem extends Sourced {
@@ -396,6 +421,8 @@ export interface ImpactNode {
   via: EdgeKind;
   /** 0..1 confidence that this item is genuinely affected. */
   confidence: number;
+  /** The dependency path from the change origin down to this node. */
+  path: EntityRef[];
 }
 
 export interface ImpactAnalysis {
@@ -569,6 +596,7 @@ export interface NexusData {
   teams: Team[];
   members: Member[];
   volunteers: Volunteer[];
+  participants: Participant[];
   tasks: Task[];
   resources: ResourceItem[];
   dependencies: Dependency[];
@@ -589,7 +617,7 @@ export interface NexusData {
 
 /* ------------------------------ roles --------------------------------- */
 
-export type RoleId = "organizer" | "ops_lead" | "volunteer";
+export type RoleId = "organizer" | "ops_lead" | "volunteer_coordinator" | "volunteer";
 
 export interface RoleDefinition {
   id: RoleId;
@@ -703,6 +731,15 @@ export interface MemoryEntry extends Sourced {
   reusable: boolean;
   capturedAt: string;
   notionPageId?: string;
+  /** Structured post-incident knowledge (present on derived incident memories). */
+  problem?: string;
+  impact?: string;
+  resolution?: string;
+  lesson?: string;
+  /** Owner responsible for the memory. */
+  owner?: string;
+  /** ISO date the underlying event occurred. */
+  date?: string;
 }
 
 /* ---------------------------- event report ---------------------------- */

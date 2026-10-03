@@ -30,6 +30,7 @@ const LABEL_OF: Record<string, (r: Record<string, unknown>) => string> = {
   teams: (r) => String(r.name ?? r.id),
   members: (r) => String(r.name ?? r.id),
   volunteers: (r) => String(r.name ?? r.id),
+  participants: (r) => String(r.name ?? r.id),
   tasks: (r) => String(r.title ?? r.id),
   resources: (r) => String(r.name ?? r.id),
   dependencies: (r) => String(r.id),
@@ -186,6 +187,8 @@ function summarize(collection: CollectionKey, r: Record<string, unknown>, data: 
       return `${r.department ?? "—"} · ${String(r.priority ?? "")} · ${String(r.status ?? "")}`;
     case "volunteers":
       return `${r.role ?? "—"} · workload ${r.workload ?? 0}% · ${String(r.status ?? "")}`;
+    case "participants":
+      return `${r.ticketType ?? "—"} · ${r.email ?? ""} · ${String(r.status ?? "")}`;
     case "resources":
       return `${r.category ?? "—"} · ${r.available ?? 0} free / ${r.quantity ?? 0} · ${String(r.status ?? "")}`;
     case "teams":

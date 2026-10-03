@@ -153,7 +153,25 @@ export function Knowledge() {
                   <BadgeTone tone={MEMORY_KIND_META[m.kind].tone}>{MEMORY_KIND_META[m.kind].label}</BadgeTone>
                 </div>
                 <p className="mt-1 text-[11px] leading-relaxed text-slate-400">{m.body}</p>
+                {m.problem || m.resolution || m.lesson ? (
+                  <div className="mt-2 space-y-1 rounded-lg border border-white/8 bg-white/3 p-2.5">
+                    {m.problem ? (
+                      <div className="text-[11px]"><span className="font-semibold text-rose-300">Problem: </span><span className="text-slate-300">{m.problem}</span></div>
+                    ) : null}
+                    {m.impact ? (
+                      <div className="text-[11px]"><span className="font-semibold text-amber-300">Impact: </span><span className="text-slate-300">{m.impact}</span></div>
+                    ) : null}
+                    {m.resolution ? (
+                      <div className="text-[11px]"><span className="font-semibold text-emerald-300">Resolution: </span><span className="text-slate-300">{m.resolution}</span></div>
+                    ) : null}
+                    {m.lesson ? (
+                      <div className="text-[11px]"><span className="font-semibold text-violet-300">Lesson learned: </span><span className="text-slate-300">{m.lesson}</span></div>
+                    ) : null}
+                  </div>
+                ) : null}
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
+                  {m.owner ? <span className="rounded-md border border-white/10 bg-white/4 px-1.5 py-0.5">OWNER: {m.owner}</span> : null}
+                  {m.date ? <span className="rounded-md border border-white/10 bg-white/4 px-1.5 py-0.5">DATE: {m.date.slice(0, 10)}</span> : null}
                   <span className="rounded-md border border-white/10 bg-white/4 px-1.5 py-0.5">SOURCE: {m.source}</span>
                   {m.reusable ? <BadgeTone tone="ok">reusable</BadgeTone> : null}
                   {m.notionPageId ? <span className="inline-flex items-center gap-1"><Database size={9} /> notion:{m.notionPageId}</span> : null}

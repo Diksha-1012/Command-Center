@@ -34,6 +34,7 @@ export function TaskRow({
       className={cn(
         "group w-full rounded-xl border border-white/8 bg-white/3 p-3 text-left transition-all hover:border-white/14 hover:bg-white/6",
         task.status === "blocked" && "border-l-2 border-l-rose-400",
+        task.status === "at_risk" && "border-l-2 border-l-amber-400",
         task.status === "completed" && "opacity-70",
       )}
     >
@@ -68,12 +69,17 @@ export function TaskRow({
             <div className="w-36">
               <ProgressBar
                 value={task.progress}
-                tone={task.status === "blocked" ? "bad" : task.status === "completed" ? "ok" : "blue"}
+                tone={task.status === "blocked" ? "bad" : task.status === "at_risk" ? "warn" : task.status === "completed" ? "ok" : "blue"}
                 height={5}
               />
             </div>
             <span className="font-mono text-[10px] text-slate-500">{task.progress}%</span>
             <div className="ml-auto flex items-center gap-2">
+              {task.escalation ? (
+                <span className="inline-flex items-center gap-1 rounded-md border border-amber-400/25 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-300">
+                  <AlertOctagon size={10} /> escalated
+                </span>
+              ) : null}
               {blockers.length > 0 ? (
                 <span className="inline-flex items-center gap-1 rounded-md border border-rose-400/25 bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-medium text-rose-300">
                   <AlertOctagon size={10} /> {blockers.length} blocker{blockers.length > 1 ? "s" : ""}

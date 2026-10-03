@@ -117,6 +117,21 @@ export const ENTITY_FORMS: EntityFormConfig[] = [
     ],
   },
   {
+    key: "participants",
+    label: "Participants",
+    singular: "participant",
+    icon: "🎟️",
+    blurb: "Registered attendees, tickets and check-in status.",
+    fields: [
+      { key: "name", label: "Name", kind: "text", required: true, placeholder: "Aditi Rao" },
+      { key: "email", label: "Email", kind: "text", placeholder: "name@example.com" },
+      { key: "ticketType", label: "Ticket type", kind: "text", placeholder: "Full Access" },
+      { key: "sessionId", label: "Registered session", kind: "ref", refCollection: "sessions" },
+      { key: "teamId", label: "Owning team", kind: "ref", refCollection: "teams" },
+      { key: "status", label: "Status", kind: "select", options: ["registered", "checked_in", "no_show", "cancelled"], defaultValue: "registered" },
+    ],
+  },
+  {
     key: "tasks",
     label: "Tasks",
     singular: "task",

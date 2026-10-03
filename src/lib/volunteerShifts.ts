@@ -51,7 +51,7 @@ export function sessionForShift(data: NexusData, shift: ShiftAssignment): Sessio
 
 /** Tasks for the "my tasks" checklist, done-first-then-pending like a shift list. */
 export function myTasks(data: NexusData, volunteerId: string): Task[] {
-  const order = { completed: 0, in_progress: 1, blocked: 2, not_started: 3 } as const;
+  const order = { completed: 0, in_progress: 1, at_risk: 2, blocked: 3, not_started: 4 } as const;
   return data.tasks
     .filter((t) => t.ownerKind === "volunteer" && t.ownerId === volunteerId)
     .sort((a, b) => order[a.status] - order[b.status] || (a.deadline < b.deadline ? -1 : 1));

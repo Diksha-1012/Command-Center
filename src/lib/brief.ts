@@ -1,5 +1,5 @@
 import type { EntityRef, NexusData, RecommendedAction, Severity } from "@/types";
-import { CURRENT_USER_ID } from "@/data/seed";
+import { CURRENT_USER_ID, NOW } from "@/data/seed";
 import { activeAlerts, computeKpis, overloadedVolunteers, resourceConflicts } from "./selectors";
 import { analyzeRisk } from "./riskEngine";
 import { teamLoadMap } from "./workloadAnalyzer";
@@ -16,6 +16,10 @@ export interface BriefItem {
   level: Severity;
   text: string;
   ref?: EntityRef;
+  /** VERIFIED = a fact read from records. insight = an AI interpretation. */
+  kind: "verified" | "insight";
+  /** For insights: the reasoning behind the interpretation. */
+  why?: string;
 }
 
 export interface DailyBrief {
@@ -36,17 +40,20 @@ export function dailyBrief(data: NexusData): DailyBrief {
 
   const items: BriefItem[] = [];
 
+  /* -------------------------- VERIFIED FACTS ------------------------- */
+
   for (const a of alerts.filter((x) => x.severity === "critical")) {
-    items.push({ id: `a-${a.id}`, level: "critical", text: a.title, ref: a.related });
+    items.push({ id: `a-${a.id}`, level: "critical", text: a.title, ref: a.related, kind: "verified" });
   }
 
-  const overdue = data.tasks.filter((t) => t.status !== "completed" && new Date(t.deadline).getTime() < new Date("2026-11-15T14:20:00").getTime());
+  const overdue = data.tasks.filter((t) => t.status !== "completed" && new Date(t.deadline).getTime() < new Date(NOW).getTime());
   if (overdue.length) {
     items.push({
       id: "overdue",
       level: "warning",
       text: `${overdue.length} task${overdue.length === 1 ? "" : "s"} past deadline, including "${overdue[0].title}".`,
       ref: { kind: "task", id: overdue[0].id, label: overdue[0].title },
+      kind: "verified",
     });
   }
 
@@ -56,16 +63,7 @@ export function dailyBrief(data: NexusData): DailyBrief {
       level: "warning",
       text: `${conflicts.length} equipment conflict${conflicts.length === 1 ? "" : "s"} — ${conflicts[0].name} is short by ${conflicts[0].assigned - conflicts[0].available} units.`,
       ref: { kind: "resource", id: conflicts[0].id, label: conflicts[0].name },
-    });
-  }
-
-  const topLoad = loads.find((l) => l.overloaded);
-  if (topLoad) {
-    items.push({
-      id: "load",
-      level: "warning",
-      text: `${topLoad.name} department is running at ${topLoad.load}% load (${topLoad.drivers[1]}).`,
-      ref: { kind: "team", id: topLoad.teamId, label: topLoad.name },
+      kind: "verified",
     });
   }
 
@@ -75,21 +73,76 @@ export function dailyBrief(data: NexusData): DailyBrief {
       level: "warning",
       text: `${overloaded.length} volunteer${overloaded.length === 1 ? "" : "s"} above 90% workload — ${overloaded[0].name} at ${overloaded[0].workload}%.`,
       ref: { kind: "volunteer", id: overloaded[0].id, label: overloaded[0].name },
+      kind: "verified",
+    });
+  }
+
+  const blocked = data.tasks.filter((t) => t.status === "blocked");
+  if (blocked.length) {
+    items.push({
+      id: "blocked",
+      level: "warning",
+      text: `${blocked.length} task${blocked.length === 1 ? "" : "s"} blocked, including "${blocked[0].title}".`,
+      ref: { kind: "task", id: blocked[0].id, label: blocked[0].title },
+      kind: "verified",
+    });
+  }
+
+  /* ---------------------------- AI INSIGHTS -------------------------- */
+
+  // Insight: overdue tasks that converge on a single session create a bottleneck.
+  if (overdue.length) {
+    const sessionCounts = new Map<string, number>();
+    for (const t of overdue) if (t.sessionId) sessionCounts.set(t.sessionId, (sessionCounts.get(t.sessionId) ?? 0) + 1);
+    const bottleneck = [...sessionCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (bottleneck) {
+      const session = data.sessions.find((s) => s.id === bottleneck[0]);
+      items.push({
+        id: "insight-bottleneck",
+        level: "critical",
+        text: `The ${bottleneck[1]} overdue task${bottleneck[1] === 1 ? "" : "s"} converge on ${session?.title ?? bottleneck[0]}, creating a dependency bottleneck.`,
+        ref: session ? { kind: "session", id: session.id, label: session.title } : undefined,
+        kind: "insight",
+        why: `${bottleneck[1]} of the overdue tasks are linked to the same session; clearing them together unblocks that session's critical path.`,
+      });
+    } else {
+      items.push({
+        id: "insight-overdue",
+        level: "warning",
+        text: `Overdue work is spread across departments rather than one bottleneck — prioritise the highest-priority item first.`,
+        kind: "insight",
+        why: "No single session or team concentrates the overdue tasks, so the risk is diffuse.",
+      });
+    }
+  }
+
+  const topLoad = loads.find((l) => l.overloaded);
+  if (topLoad) {
+    items.push({
+      id: "insight-load",
+      level: "warning",
+      text: `${topLoad.name} department is at ${topLoad.load}% load and is the most likely source of cascading delay.`,
+      ref: { kind: "team", id: topLoad.teamId, label: topLoad.name },
+      kind: "insight",
+      why: topLoad.drivers.join("; ") + ".",
     });
   }
 
   const criticalFindings = risk.findings.filter((f) => f.level === "critical").slice(0, 2);
   for (const f of criticalFindings) {
-    items.push({ id: f.id, level: "critical", text: f.title, ref: f.ref });
+    items.push({ id: f.id, level: "critical", text: f.title, ref: f.ref, kind: "insight", why: f.reason });
   }
 
   const registration = data.teams.find((t) => t.id === "t-reg");
-  items.push({
-    id: "registration",
-    level: "info",
-    text: `Registration is on track — ${data.volunteers.filter((v) => v.teamId === "t-reg" && v.status === "assigned").length} staff on desk, flow steady.`,
-    ref: registration ? { kind: "team", id: registration.id, label: registration.name } : undefined,
-  });
+  if (registration) {
+    items.push({
+      id: "registration",
+      level: "info",
+      text: `Registration has ${data.volunteers.filter((v) => v.teamId === "t-reg" && v.status === "assigned").length} staff on desk.`,
+      ref: { kind: "team", id: registration.id, label: registration.name },
+      kind: "verified",
+    });
+  }
 
   const actions: RecommendedAction[] = [];
 

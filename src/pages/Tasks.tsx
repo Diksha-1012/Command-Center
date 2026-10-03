@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarClock, GitBranch, Layers, Link2, Package, Play, Plus, UserCheck } from "lucide-react";
+import { CalendarClock, GitBranch, Layers, Link2, Package, Play, Plus, TriangleAlert, UserCheck } from "lucide-react";
 import { useNexus } from "@/store/DataContext";
 import { NOW } from "@/data/seed";
 import { blockedDependents, filterTasks, sortTasks, type TaskView } from "@/lib/selectors";
@@ -12,14 +12,15 @@ import { cn } from "@/lib/cn";
 import type { Priority, Task, TaskStatus } from "@/types";
 
 const COLUMNS: { status: TaskStatus; label: string; tone: "ok" | "warn" | "bad" | "neutral" | "blue" }[] = [
-  { status: "not_started", label: "Not Started", tone: "neutral" },
+  { status: "not_started", label: "Pending", tone: "neutral" },
   { status: "in_progress", label: "In Progress", tone: "blue" },
   { status: "blocked", label: "Blocked", tone: "bad" },
+  { status: "at_risk", label: "At Risk", tone: "warn" },
   { status: "completed", label: "Completed", tone: "ok" },
 ];
 
 export function Tasks() {
-  const { data, setTaskStatus, setTaskProgress, createTask } = useNexus();
+  const { data, setTaskStatus, setTaskProgress, createTask, escalateTask } = useNexus();
   const navigate = useNavigate();
   const [view, setView] = useState<TaskView>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -56,11 +57,12 @@ export function Tasks() {
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <MiniStat label="Completion" value={`${Math.round(completion)}%`} tone="ok" hint={`${counts.completed}/${counts.all} done`} />
-        <MiniStat label="In progress" value={String(counts.all - counts.completed - filterTasks(data.tasks, "all", "m1").filter((t) => t.status === "blocked").length)} tone="blue" hint="active workstreams" />
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+        <MiniStat label="Completed" value={`${Math.round(completion)}%`} tone="ok" hint={`${counts.completed}/${counts.all} done`} />
+        <MiniStat label="Pending" value={String(data.tasks.filter((t) => t.status === "not_started").length)} tone="neutral" hint="not started" />
+        <MiniStat label="In progress" value={String(data.tasks.filter((t) => t.status === "in_progress").length)} tone="blue" hint="active workstreams" />
         <MiniStat label="Blocked" value={String(data.tasks.filter((t) => t.status === "blocked").length)} tone="bad" hint="waiting on dependencies" />
-        <MiniStat label="Overdue" value={String(overdue)} tone="bad" hint="past deadline" />
+        <MiniStat label="At risk" value={String(data.tasks.filter((t) => t.status === "at_risk").length)} tone="warn" hint={`${overdue} overdue`} />
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -83,7 +85,7 @@ export function Tasks() {
       </div>
 
       {view === "all" || view === "mine" ? (
-        <div className="grid gap-4 xl:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           {COLUMNS.map((col) => {
             const items = sortTasks(filtered.filter((t) => t.status === col.status));
             return (
@@ -123,6 +125,7 @@ export function Tasks() {
         onClose={() => setSelectedId(null)}
         onStatus={(id, status) => setTaskStatus(id, status)}
         onProgress={(id, p) => setTaskProgress(id, p)}
+        onEscalate={(id, reason) => escalateTask(id, reason)}
         onOpenSession={() => {
           setSelectedId(null);
           navigate("/schedule");
@@ -134,8 +137,8 @@ export function Tasks() {
   );
 }
 
-function MiniStat({ label, value, tone, hint }: { label: string; value: string; tone: "ok" | "warn" | "bad" | "blue"; hint: string }) {
-  const colors: Record<string, string> = { ok: "text-emerald-300", warn: "text-amber-300", bad: "text-rose-300", blue: "text-sky-300" };
+function MiniStat({ label, value, tone, hint }: { label: string; value: string; tone: "ok" | "warn" | "bad" | "blue" | "neutral"; hint: string }) {
+  const colors: Record<string, string> = { ok: "text-emerald-300", warn: "text-amber-300", bad: "text-rose-300", blue: "text-sky-300", neutral: "text-slate-300" };
   return (
     <Panel className="p-3.5">
       <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{label}</div>
@@ -151,6 +154,7 @@ function TaskDrawer({
   onClose,
   onStatus,
   onProgress,
+  onEscalate,
   onOpenSession,
 }: {
   task: Task | null;
@@ -158,8 +162,11 @@ function TaskDrawer({
   onClose: () => void;
   onStatus: (id: string, status: TaskStatus) => void;
   onProgress: (id: string, progress: number) => void;
+  onEscalate: (id: string, reason: string) => void;
   onOpenSession: () => void;
 }) {
+  const [escalating, setEscalating] = useState(false);
+  const [reason, setReason] = useState("");
   if (!task) return null;
   const owner = task.ownerKind === "volunteer" ? data.volunteers.find((v) => v.id === task.ownerId) : data.members.find((m) => m.id === task.ownerId);
   const deps = data.tasks.filter((t) => task.dependencyIds.includes(t.id));
@@ -202,7 +209,7 @@ function TaskDrawer({
             />
             <span className="w-10 text-right font-mono text-xs text-slate-300">{task.progress}%</span>
           </div>
-          <div className="mt-2"><ProgressBar value={task.progress} tone={task.status === "blocked" ? "bad" : "blue"} /></div>
+          <div className="mt-2"><ProgressBar value={task.progress} tone={task.status === "blocked" ? "bad" : task.status === "at_risk" ? "warn" : "blue"} /></div>
         </div>
 
         <div>
@@ -220,6 +227,57 @@ function TaskDrawer({
               </Button>
             ))}
           </div>
+        </div>
+
+        {/* Escalation */}
+        <div className="rounded-xl border border-amber-400/20 bg-amber-500/6 p-3">
+          <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
+            <TriangleAlert size={12} /> Escalation
+          </div>
+          {task.escalation ? (
+            <div className="mt-2 space-y-1">
+              <p className="text-[11px] text-slate-300">{task.escalation.reason}</p>
+              <p className="text-[10px] text-slate-500">
+                Routed to {data.members.find((m) => m.id === task.escalation!.escalatedTo)?.name ?? task.escalation.escalatedTo} · {timeOf(task.escalation.raisedAt)}
+              </p>
+            </div>
+          ) : escalating ? (
+            <div className="mt-2 space-y-2">
+              <input
+                autoFocus
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Why is this escalating? e.g. blocker unresolved past deadline"
+                className={FIELD_CLASS}
+              />
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="primary"
+                  disabled={!reason.trim()}
+                  onClick={() => {
+                    onEscalate(task.id, reason.trim());
+                    setEscalating(false);
+                    setReason("");
+                  }}
+                >
+                  <TriangleAlert size={12} /> Raise escalation
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setEscalating(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-2">
+              <p className="text-[11px] text-slate-400">
+                Blocked or at-risk work escalates to the owning team's lead. Nothing is escalated automatically.
+              </p>
+              <Button size="sm" variant="outline" className="mt-2" onClick={() => setEscalating(true)}>
+                <TriangleAlert size={12} /> Escalate task
+              </Button>
+            </div>
+          )}
         </div>
 
         {deps.length > 0 || dependents.length > 0 ? (

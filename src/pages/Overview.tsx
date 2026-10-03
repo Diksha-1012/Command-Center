@@ -19,13 +19,39 @@ import {
   activeAlerts, computeKpis, eventHealthScore, healthLabel, operationalPulse, teamRollups, volunteerLoadSummary,
 } from "@/lib/selectors";
 import { KpiCard } from "@/components/domain/KpiCard";
-import { dailyBrief } from "@/lib/brief";
+import { dailyBrief, type BriefItem } from "@/lib/brief";
 import { AlertCard } from "@/components/domain/AlertCard";
 import { HealthMetricBars, RadialGauge, StackedBar } from "@/components/ui/charts";
 import { Avatar, BadgeTone, Button, Panel, PanelHeader, ProgressBar, StatusDot } from "@/components/ui/primitives";
 import { ModeBadge } from "@/components/domain/RecordSource";
 import { timeOf } from "@/lib/format";
 import { cn } from "@/lib/cn";
+
+function BriefItemRow({ item, onOpen }: { item: BriefItem; onOpen: () => void }) {
+  const isInsight = item.kind === "insight";
+  return (
+    <button
+      onClick={onOpen}
+      className="flex w-full items-start gap-2.5 rounded-lg border border-white/8 bg-white/3 px-2.5 py-2 text-left hover:bg-white/6"
+    >
+      <span className={cn("mt-1 h-2 w-2 shrink-0 rounded-full", item.level === "critical" ? "bg-rose-400" : item.level === "warning" ? "bg-amber-400" : "bg-emerald-400")} />
+      <span className="min-w-0 flex-1">
+        <span className="mb-0.5 inline-flex items-center gap-1 rounded px-1 py-0.5 text-[9px] font-bold tracking-wide"
+          style={{
+            background: isInsight ? "rgba(139,92,246,0.14)" : "rgba(16,185,129,0.12)",
+            color: isInsight ? "#c4b5fd" : "#6ee7b7",
+          }}
+        >
+          {isInsight ? "✦ AI INSIGHT" : "✓ VERIFIED"}
+        </span>
+        <span className="block text-xs text-slate-300">{item.text}</span>
+        {item.why ? <span className="mt-0.5 block text-[10px] text-slate-500">why: {item.why}</span> : null}
+        {item.ref ? <span className="mt-0.5 block text-[10px] text-slate-500">{item.ref.kind}: {item.ref.label}</span> : null}
+      </span>
+      <ArrowUpRight size={13} className="mt-0.5 shrink-0 text-slate-600" />
+    </button>
+  );
+}
 
 export function Overview() {
   const { data, mode, acknowledgeAlert } = useNexus();
@@ -104,18 +130,7 @@ export function Overview() {
                   <p className="text-xs text-slate-500">No operational issues detected from your live records.</p>
                 ) : (
                   brief.items.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => navigate(item.ref ? ROUTE_FOR_KIND[item.ref.kind] ?? "/command" : "/command")}
-                      className="flex w-full items-start gap-2.5 rounded-lg border border-white/8 bg-white/3 px-2.5 py-2 text-left hover:bg-white/6"
-                    >
-                      <span className={cn("mt-1 h-2 w-2 shrink-0 rounded-full", item.level === "critical" ? "bg-rose-400" : item.level === "warning" ? "bg-amber-400" : "bg-emerald-400")} />
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-xs text-slate-300">{item.text}</span>
-                        {item.ref ? <span className="mt-0.5 block text-[10px] text-slate-500">{item.ref.kind}: {item.ref.label}</span> : null}
-                      </span>
-                      <ArrowUpRight size={13} className="mt-0.5 shrink-0 text-slate-600" />
-                    </button>
+                    <BriefItemRow key={item.id} item={item} onOpen={() => navigate(item.ref ? ROUTE_FOR_KIND[item.ref.kind] ?? "/command" : "/command")} />
                   ))
                 )}
               </div>
@@ -143,27 +158,7 @@ export function Overview() {
             <p className="text-sm font-medium text-slate-200">{brief.greeting}</p>
             <div className="mt-3 space-y-1.5">
               {brief.items.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => navigate(item.ref ? ROUTE_FOR_KIND[item.ref.kind] ?? "/command" : "/command")}
-                  className="flex w-full items-start gap-2.5 rounded-lg border border-white/8 bg-white/3 px-2.5 py-2 text-left hover:bg-white/6"
-                >
-                  <span
-                    className={cn(
-                      "mt-1 h-2 w-2 shrink-0 rounded-full",
-                      item.level === "critical" ? "bg-rose-400" : item.level === "warning" ? "bg-amber-400" : "bg-emerald-400",
-                    )}
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-xs text-slate-300">{item.text}</span>
-                    {item.ref ? (
-                      <span className="mt-0.5 block text-[10px] text-slate-500">
-                        {item.ref.kind}: {item.ref.label}
-                      </span>
-                    ) : null}
-                  </span>
-                  <ArrowUpRight size={13} className="mt-0.5 shrink-0 text-slate-600" />
-                </button>
+                <BriefItemRow key={item.id} item={item} onOpen={() => navigate(item.ref ? ROUTE_FOR_KIND[item.ref.kind] ?? "/command" : "/command")} />
               ))}
             </div>
           </div>

@@ -16,6 +16,7 @@ import type {
   Member,
   MemoryEntry,
   NexusData,
+  Participant,
   NotionConnection,
   NotionMode,
   NotionSyncState,
@@ -69,6 +70,7 @@ export type CollectionKey =
   | "teams"
   | "members"
   | "volunteers"
+  | "participants"
   | "tasks"
   | "resources"
   | "dependencies"
@@ -83,6 +85,7 @@ interface EntityMap {
   teams: Team;
   members: Member;
   volunteers: Volunteer;
+  participants: Participant;
   tasks: Task;
   resources: ResourceItem;
   dependencies: Dependency;
@@ -179,6 +182,7 @@ function setActiveData(state: State, data: NexusData): State {
 function nextProgress(status: TaskStatus, progress: number): number {
   if (status === "completed") return 100;
   if (status === "not_started") return Math.min(progress, 10);
+  if (status === "at_risk") return Math.min(progress, 95);
   return progress;
 }
 
@@ -357,6 +361,8 @@ interface DataContextValue extends Omit<State, "demoData" | "liveData" | "demoMe
   updateEntity: <K extends CollectionKey>(collection: K, id: string, patch: Partial<EntityMap[K]>) => void;
   deleteEntity: (collection: CollectionKey, id: string) => void;
   updateEvent: (patch: Partial<EventRecord>) => void;
+  /** Raise an escalation on a blocked/at-risk task (routes to the owning team's lead). */
+  escalateTask: (id: string, reason: string) => void;
 
   patchConnection: (patch: Partial<NotionConnection>) => void;
   connectNotion: (mode: NotionMode) => void;
@@ -380,6 +386,7 @@ const DATA_COLLECTIONS: CollectionKey[] = [
   "teams",
   "members",
   "volunteers",
+  "participants",
   "tasks",
   "resources",
   "dependencies",
@@ -518,6 +525,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
       updateEntity: (collection, id, patch) => dispatch({ type: "entity/update", collection, id, patch: patch as Record<string, unknown> }),
       deleteEntity: (collection, id) => dispatch({ type: "entity/delete", collection, id }),
       updateEvent: (patch) => dispatch({ type: "event/update", patch }),
+      escalateTask: (id, reason) => {
+        const task = data.tasks.find((t) => t.id === id);
+        if (!task) return;
+        const team = data.teams.find((t) => t.id === task.teamId);
+        const escalatedTo = team?.leadMemberId ?? data.members[0]?.id ?? "";
+        const target = data.members.find((m) => m.id === escalatedTo)?.name ?? escalatedTo;
+        dispatch({
+          type: "entity/update",
+          collection: "tasks",
+          id,
+          patch: { status: "at_risk", escalation: { escalatedTo, reason, raisedAt: nowIso() } },
+        });
+        dispatch({
+          type: "activity/push",
+          event: activity("approval", `Task escalated: ${task.title}`, `${reason} · routed to ${target}`, [{ kind: "task", id: task.id, label: task.title }]),
+        });
+      },
 
       patchConnection: (patch) => dispatch({ type: "notion/connection", patch }),
       connectNotion: (mode) =>

@@ -9,12 +9,12 @@ import { cn } from "@/lib/cn";
 import type { WorkspaceMode } from "@/types";
 
 const ROLES = [
-  { name: "Event Organizer / Leadership", status: "active", note: "Overview, health, portfolio" },
-  { name: "Operations Lead", status: "active", note: "Command Center, tasks, schedule" },
-  { name: "Volunteer", status: "active", note: "Roster, coverage, workload" },
+  { name: "Event Organizer / Leadership", status: "active", note: "Full command: overview, health, portfolio" },
+  { name: "Operations Lead", status: "active", note: "Command Center, tasks, schedule, resources" },
+  { name: "Volunteer Coordinator", status: "active", note: "Roster, coverage, workload and assignments" },
+  { name: "Volunteer", status: "active", note: "Mobile shift view: my tasks, announcements" },
   { name: "Technical Lead", status: "modelled", note: "In domain; covered by the Organizer / Ops role switch" },
   { name: "Marketing / Comms Lead", status: "modelled", note: "In domain; covered by the Organizer / Ops role switch" },
-  { name: "Volunteer Coordinator", status: "modelled", note: "In domain; covered by the Volunteer role view" },
 ];
 
 export function Settings() {

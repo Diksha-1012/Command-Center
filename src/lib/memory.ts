@@ -104,32 +104,48 @@ export function seedMemory(data: NexusData): MemoryEntry[] {
   ];
 }
 
-/** Memories derived from the live event so knowledge grows as things happen. */
+/**
+ * Memories derived from the live event so knowledge grows as things happen.
+ * A resolved/mitigated incident becomes a structured knowledge record with
+ * problem, impact, resolution, lesson learned, affected entities, date and owner.
+ */
 export function deriveMemories(data: NexusData): MemoryEntry[] {
   const out: MemoryEntry[] = [];
   for (const incident of data.incidents) {
-    if (incident.status === "resolved" || incident.status === "mitigated") {
-      out.push({
-        id: `mem-${incident.id}`,
-        kind: "incident",
-        title: incident.title,
-        body: incident.notes,
-        source: "Incident log",
-        tags: [incident.severity, incident.location],
-        related: [
-          { kind: "incident", id: incident.id, label: incident.title },
-          ...(incident.relatedSessionId
-            ? [{
-                kind: "session" as const,
-                id: incident.relatedSessionId,
-                label: data.sessions.find((s) => s.id === incident.relatedSessionId)?.title ?? incident.relatedSessionId,
-              }]
-            : []),
-        ],
-        reusable: incident.severity === "critical",
-        capturedAt: incident.timestamp,
-      });
-    }
+    if (incident.status !== "resolved" && incident.status !== "mitigated") continue;
+
+    const session = incident.relatedSessionId ? data.sessions.find((s) => s.id === incident.relatedSessionId) : undefined;
+    const resource = incident.relatedResourceId ? data.resources.find((r) => r.id === incident.relatedResourceId) : undefined;
+    const owner = data.members.find((m) => m.id === incident.ownerId) ?? data.volunteers.find((v) => v.id === incident.ownerId);
+    const affected: MemoryEntry["related"] = [
+      { kind: "incident", id: incident.id, label: incident.title },
+      ...(session ? [{ kind: "session" as const, id: session.id, label: session.title }] : []),
+      ...(resource ? [{ kind: "resource" as const, id: resource.id, label: resource.name }] : []),
+    ];
+
+    const resolution = incident.notes || "Mitigation recorded on the incident record.";
+    const lesson =
+      incident.severity === "critical"
+        ? `Critical incident: pre-empt this failure mode next time — ${incident.title.toLowerCase()} must have an owner and a contingency before doors open.`
+        : `Reusable mitigation for ${incident.location}: ${resolution}`;
+
+    out.push({
+      id: `mem-${incident.id}`,
+      kind: "incident",
+      title: incident.title,
+      body: `Problem: ${incident.title}. Impact: ${incident.severity.toUpperCase()} incident at ${incident.location}${session ? ` affecting ${session.title}` : ""}. Resolution: ${resolution}`,
+      source: "Incident log",
+      tags: [incident.severity, incident.location],
+      related: affected,
+      reusable: true,
+      capturedAt: incident.timestamp,
+      problem: incident.title,
+      impact: `${incident.severity.toUpperCase()} severity at ${incident.location}${session ? ` · affected session "${session.title}"` : ""}${resource ? ` · affected resource "${resource.name}"` : ""}.`,
+      resolution,
+      lesson,
+      owner: owner?.name ?? incident.ownerId,
+      date: incident.timestamp,
+    });
   }
   return out;
 }

@@ -132,10 +132,13 @@ export function Copilot() {
                   ) : null}
 
                   {m.sources && m.sources.length > 0 ? (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {m.sources.map((s) => (
-                        <SourceChip key={`${s.kind}-${s.id}`} source={s} onClick={() => navigate(ROUTE_FOR_KIND[s.kind] ?? "/command")} />
-                      ))}
+                    <div className="mt-2">
+                      <div className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-slate-500">Sources</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {m.sources.map((s) => (
+                          <SourceChip key={`${s.kind}-${s.id}`} source={s} onClick={() => navigate(ROUTE_FOR_KIND[s.kind] ?? "/command")} />
+                        ))}
+                      </div>
                     </div>
                   ) : null}
                 </div>

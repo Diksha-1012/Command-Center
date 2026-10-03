@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "./components/layout/AppShell";
+import { RequireRole } from "./components/layout/RequireRole";
 import { Overview } from "./pages/Overview";
 import { Events } from "./pages/Events";
 import { EventDetails } from "./pages/EventDetails";
@@ -27,7 +28,13 @@ import { DataStudio } from "./pages/DataStudio";
 export default function App() {
   return (
     <Routes>
-      <Route element={<AppShell />}>
+      <Route
+        element={
+          <RequireRole>
+            <AppShell />
+          </RequireRole>
+        }
+      >
         <Route path="/" element={<Overview />} />
         <Route path="/events" element={<Events />} />
         <Route path="/data" element={<DataStudio />} />

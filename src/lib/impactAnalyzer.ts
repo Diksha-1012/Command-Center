@@ -56,9 +56,10 @@ export function analyzeImpact(
     depth: 0,
     via: "AFFECTS",
     confidence: 1,
+    path: [source],
   });
 
-  let frontier: { key: string; confidence: number }[] = [{ key: rootKey, confidence: 1 }];
+  let frontier: { key: string; confidence: number; path: EntityRef[] }[] = [{ key: rootKey, confidence: 1, path: [source] }];
 
   /**
    * Propagation rules (this is what keeps the blast radius credible):
@@ -70,7 +71,7 @@ export function analyzeImpact(
    *  3. Requirements are NOT expanded further — this prevents the whole
    *     graph collapsing into every change.
    */
-  const add = (key: string, edge: GraphEdge, depth: number, confidence: number) => {
+  const add = (key: string, edge: GraphEdge, depth: number, confidence: number, path: EntityRef[]) => {
     const node = graph.nodes[key];
     if (!node) return false;
     const nodeRisk = risk.byNode[key] ?? "none";
@@ -83,6 +84,7 @@ export function analyzeImpact(
       depth,
       via: edge.kind,
       confidence: round2(confidence),
+      path,
     });
     return true;
   };
@@ -95,12 +97,16 @@ export function analyzeImpact(
         const other = edge.from;
         if (visited.has(other)) continue;
         const confidence = Math.min(1, edge.weight * Math.pow(DECAY, depth - 1));
-        if (add(other, edge, depth, confidence)) next.push({ key: other, confidence });
+        const node = graph.nodes[other];
+        const path = node ? [...cur.path, node.ref] : cur.path;
+        if (add(other, edge, depth, confidence, path)) next.push({ key: other, confidence, path });
       }
       for (const edge of graph.out[cur.key] ?? []) {
         const other = edge.to;
         if (visited.has(other)) continue;
-        add(other, edge, depth, edge.weight * Math.pow(DECAY, depth) * 0.9);
+        const node = graph.nodes[other];
+        const path = node ? [...cur.path, node.ref] : cur.path;
+        add(other, edge, depth, edge.weight * Math.pow(DECAY, depth) * 0.9, path);
       }
     }
     frontier = next;
@@ -114,7 +120,9 @@ export function analyzeImpact(
     const skey = nodeKey("session", node.id);
     for (const edge of graph.out[skey] ?? []) {
       if (visited.has(edge.to)) continue;
-      add(edge.to, edge, Math.min(MAX_DEPTH, node.depth + 1), edge.weight * 0.85);
+      const target = graph.nodes[edge.to];
+      const path = target ? [...node.path, target.ref] : node.path;
+      add(edge.to, edge, Math.min(MAX_DEPTH, node.depth + 1), edge.weight * 0.85, path);
     }
   }
 

@@ -1,6 +1,6 @@
 import type { EntityRef, NexusData, RiskFinding, RiskLevel } from "@/types";
 import { NOW } from "@/data/seed";
-import { isOverdue } from "./format";
+import { isOverdue, timeOf } from "./format";
 import { nodeKey } from "./dependencyEngine";
 
 /**
@@ -21,6 +21,10 @@ import { nodeKey } from "./dependencyEngine";
  *   R-VENUE        venue-level resource conflict           → CRITICAL
  *   R-SPEAKER      speaker arrival unconfirmed/delayed     → MEDIUM
  *   R-INCIDENT     open critical incident on an entity     → CRITICAL
+ *   R-NO-OWNER     open task with no valid owner            → MEDIUM
+ *   R-SESSION-CONFLICT  two live sessions overlap in a venue → CRITICAL
+ *   R-DEP-INCOMPLETE    declared dependency points at a
+ *                       record that does not exist          → MEDIUM
  */
 
 export const RISK_RANK: Record<RiskLevel, number> = { critical: 4, high: 3, medium: 2, low: 1, none: 0 };
@@ -296,11 +300,101 @@ export function analyzeRisk(data: NexusData): RiskReport {
     });
   }
 
+  /* ----------------------- missing owners ----------------------------- */
+  for (const t of data.tasks) {
+    if (t.status === "completed") continue;
+    const ownerExists =
+      t.ownerKind === "volunteer"
+        ? data.volunteers.some((v) => v.id === t.ownerId)
+        : data.members.some((m) => m.id === t.ownerId);
+    if (!ownerExists || !t.ownerId) {
+      const ref: EntityRef = { kind: "task", id: t.id, label: t.title };
+      push(report, ref, nodeKey("task", t.id), {
+        id: id(),
+        level: "medium",
+        rule: "R-NO-OWNER",
+        title: `${t.title} has no owner`,
+        reason: `This open task has no valid owner assigned. Unowned work is the most common cause of silent failure.`,
+        ref,
+        related: [ref],
+      });
+    }
+  }
+
+  /* ---------------------- venue / session conflicts ------------------- */
+  const byVenue = new Map<string, typeof data.sessions>();
+  for (const s of data.sessions) {
+    if (s.status === "completed") continue;
+    byVenue.set(s.venueId, [...(byVenue.get(s.venueId) ?? []), s]);
+  }
+  for (const [venueId, sessions] of byVenue) {
+    for (let i = 0; i < sessions.length; i++) {
+      for (let j = i + 1; j < sessions.length; j++) {
+        const a = sessions[i];
+        const b = sessions[j];
+        if (new Date(a.startsAt) < new Date(b.endsAt) && new Date(b.startsAt) < new Date(a.endsAt)) {
+          const venue = data.venues.find((v) => v.id === venueId);
+          const ref: EntityRef = { kind: "session", id: a.id, label: a.title };
+          push(report, ref, nodeKey("session", a.id), {
+            id: id(),
+            level: "critical",
+            rule: "R-SESSION-CONFLICT",
+            title: `Double-booked venue: ${venue?.name ?? venueId}`,
+            reason: `"${a.title}" and "${b.title}" overlap in the same venue (${timeOf(a.startsAt)}–${timeOf(a.endsAt)} vs ${timeOf(b.startsAt)}–${timeOf(b.endsAt)}).`,
+            ref,
+            related: [
+              { kind: "session", id: a.id, label: a.title },
+              { kind: "session", id: b.id, label: b.title },
+              ...(venue ? [{ kind: "venue" as const, id: venue.id, label: venue.name }] : []),
+            ],
+          });
+        }
+      }
+    }
+  }
+
+  /* ------------------- incomplete dependency declarations -------------- */
+  for (const dep of data.dependencies) {
+    const sourceOk = entityExists(data, dep.source.kind, dep.source.id);
+    const targetOk = entityExists(data, dep.target.kind, dep.target.id);
+    if (!sourceOk || !targetOk) {
+      const missing = !sourceOk ? dep.source : dep.target;
+      const ref: EntityRef = sourceOk ? dep.source : dep.target;
+      push(report, ref, nodeKey(ref.kind, ref.id), {
+        id: id(),
+        level: "medium",
+        rule: "R-DEP-INCOMPLETE",
+        title: `Incomplete dependency: ${dep.source.label} → ${dep.target.label}`,
+        reason: `The ${!sourceOk ? "source" : "target"} of this declared dependency (${missing.kind}:${missing.id}) does not exist in the dataset, so the impact engine cannot traverse it.`,
+        ref,
+        related: [dep.source, dep.target],
+      });
+    }
+  }
+
   // Aggregate the highest risk level reached per node.
   for (const key of Object.keys(report.byNode)) {
     report.counts[report.byNode[key]] += 1;
   }
   return report;
+}
+
+/** Does an entity of the given kind exist in the dataset? */
+function entityExists(data: NexusData, kind: EntityRef["kind"], id: string): boolean {
+  switch (kind) {
+    case "venue": return data.venues.some((x) => x.id === id);
+    case "session": return data.sessions.some((x) => x.id === id);
+    case "speaker": return data.speakers.some((x) => x.id === id);
+    case "team": return data.teams.some((x) => x.id === id);
+    case "member": return data.members.some((x) => x.id === id);
+    case "volunteer": return data.volunteers.some((x) => x.id === id);
+    case "task": return data.tasks.some((x) => x.id === id);
+    case "resource": return data.resources.some((x) => x.id === id);
+    case "communication": return data.communications.some((x) => x.id === id);
+    case "incident": return data.incidents.some((x) => x.id === id);
+    case "event": return data.event.id === id;
+    default: return true;
+  }
 }
 
 /** Risk level for an entity reference. */

@@ -131,6 +131,19 @@ function ImpactCard({ node }: { node: ImpactNode }) {
         </div>
       </div>
       <p className="mt-1 text-[11px] leading-snug text-slate-500">{node.reason}</p>
+      {node.path.length > 1 ? (
+        <div className="mt-1.5 flex flex-wrap items-center gap-1">
+          <span className="text-[9px] font-semibold uppercase tracking-wide text-slate-600">path</span>
+          {node.path.map((ref, i) => (
+            <span key={`${ref.kind}-${ref.id}-${i}`} className="flex items-center gap-1">
+              {i > 0 ? <ArrowRight size={9} className="text-slate-700" /> : null}
+              <span className={cn("rounded px-1 py-0.5 text-[9px]", i === node.path.length - 1 ? "bg-violet-500/12 text-violet-200" : "bg-white/6 text-slate-400")}>
+                {ref.label}
+              </span>
+            </span>
+          ))}
+        </div>
+      ) : null}
       <div className="mt-1.5 flex items-center gap-2">
         <div className="h-1 flex-1 overflow-hidden rounded-full bg-white/8">
           <div className="h-full rounded-full bg-violet-400/70" style={{ width: `${Math.round(node.confidence * 100)}%` }} />
