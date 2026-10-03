@@ -140,14 +140,6 @@ export function DemoTag({ label = "DEMO MODE" }: { label?: string }) {
   );
 }
 
-export function ComingNext({ label = "COMING NEXT" }: { label?: string }) {
-  return (
-    <span className="inline-flex items-center gap-1 rounded-md border border-white/12 bg-white/5 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-slate-400">
-      ⟨⟩ {label}
-    </span>
-  );
-}
-
 /* ------------------------------- status dot ---------------------------- */
 
 export function StatusDot({ tone, pulse }: { tone: AccentTone; pulse?: boolean }) {

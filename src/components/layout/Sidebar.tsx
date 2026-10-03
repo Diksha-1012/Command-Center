@@ -3,9 +3,13 @@ import { NAV_GROUPS, NAV_ITEMS } from "./nav";
 import { cn } from "@/lib/cn";
 import { useNexus } from "@/store/DataContext";
 import { activeAlerts } from "@/lib/selectors";
+import { canAccess, ROLE_BY_ID } from "@/lib/roles";
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
-  const { data } = useNexus();
+  const { data, role, dataSource } = useNexus();
+  const roleDef = ROLE_BY_ID[role];
+  const items = NAV_ITEMS.filter((i) => canAccess(roleDef, i.to));
+  const groups = NAV_GROUPS.filter((g) => items.some((i) => i.group === g));
   const alertCount = activeAlerts(data).filter((a) => !a.acknowledged && a.severity !== "info").length;
   const openTasks = data.tasks.filter((t) => t.status !== "completed").length;
   const openIncidents = data.incidents.filter((i) => i.status !== "resolved").length;
@@ -23,11 +27,11 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 pb-4">
-        {NAV_GROUPS.map((group) => (
+        {groups.map((group) => (
           <div key={group} className="mb-4">
             <div className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-600">{group}</div>
             <div className="space-y-0.5">
-              {NAV_ITEMS.filter((i) => i.group === group).map((item) => {
+              {items.filter((i) => i.group === group).map((item) => {
                 const Icon = item.icon;
                 const badge =
                   item.badgeKey === "alerts" ? alertCount : item.badgeKey === "tasks" ? openTasks : item.badgeKey === "incidents" ? openIncidents : 0;
@@ -70,11 +74,12 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         ))}
       </nav>
 
-      <div className="border-t border-white/8 px-4 py-3">
+      <div className="space-y-1 border-t border-white/8 px-4 py-3">
         <div className="flex items-center gap-2 text-[11px] text-slate-500">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-          Demo dataset · v0.1
+          <span className={cn("h-2 w-2 rounded-full", dataSource.kind === "live" ? "bg-sky-400" : "bg-amber-400")} />
+          {dataSource.label}
         </div>
+        <div className="text-[10px] text-slate-600">{roleDef.name} · {data.event.name}</div>
       </div>
     </div>
   );

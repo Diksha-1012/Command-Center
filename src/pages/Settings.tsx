@@ -2,20 +2,20 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle2, Database, RefreshCw, Server, Shield, Users2, Wand2 } from "lucide-react";
 import { useNexus } from "@/store/DataContext";
-import { BadgeTone, Button, ComingNext, Panel, PanelHeader, SectionTitle, StatusDot } from "@/components/ui/primitives";
+import { BadgeTone, Button, Panel, PanelHeader, SectionTitle, StatusDot } from "@/components/ui/primitives";
 import { cn } from "@/lib/cn";
 
 const ROLES = [
   { name: "Event Organizer / Leadership", status: "active", note: "Overview, health, portfolio" },
   { name: "Operations Lead", status: "active", note: "Command Center, tasks, schedule" },
   { name: "Volunteer", status: "active", note: "Roster, coverage, workload" },
-  { name: "Technical Lead", status: "modelled", note: "Modelled in domain, UI in Part 2" },
-  { name: "Marketing / Comms Lead", status: "modelled", note: "Modelled in domain, UI in Part 2" },
-  { name: "Volunteer Coordinator", status: "modelled", note: "Modelled in domain, UI in Part 2" },
+  { name: "Technical Lead", status: "modelled", note: "In domain; covered by the Organizer / Ops role switch" },
+  { name: "Marketing / Comms Lead", status: "modelled", note: "In domain; covered by the Organizer / Ops role switch" },
+  { name: "Volunteer Coordinator", status: "modelled", note: "In domain; covered by the Volunteer role view" },
 ];
 
 export function Settings() {
-  const { data } = useNexus();
+  const { data, resetDemo } = useNexus();
   const navigate = useNavigate();
   const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -36,8 +36,8 @@ export function Settings() {
             <Field label="Event date" value="15 November 2026" />
             <Field label="Primary venue" value={data.venues.find((v) => v.id === data.event.venueId)?.name ?? "—"} />
             <Field label="Organizers" value={data.event.organizers.join(" · ")} />
-            <Field label="Environment" value="Demo dataset (in-memory)" />
-            <Field label="Build" value="Part 1 · prototype v0.1" />
+            <Field label="Environment" value="Demo dataset (in-memory) · Notion is the durable layer" />
+            <Field label="Build" value="NEXUS OPS · v0.3 (Part 1–3)" />
           </div>
         </Panel>
 
@@ -46,8 +46,8 @@ export function Settings() {
           <div className="space-y-2 p-4">
             <SourceRow label="Local demo store" detail={`${data.tasks.length} tasks · ${data.sessions.length} sessions`} tone="ok" />
             <SourceRow label="Notion knowledge layer" detail={data.notion.connected ? `${data.notion.mode} mode · connected` : "demo mode · not connected"} tone={data.notion.connected ? "ok" : "warn"} />
-            <SourceRow label="Backend API" detail="planned — Part 2" tone="neutral" />
-            <SourceRow label="LLM provider" detail="planned — Part 3" tone="neutral" />
+            <SourceRow label="Backend API" detail="in-memory store (no backend)" tone="neutral" />
+            <SourceRow label="AI engine" detail="grounded deterministic engine" tone="ok" />
             <div className="pt-1">
               <Button size="sm" variant="outline" className="w-full" onClick={() => navigate("/knowledge")}>
                 Manage Notion connection
@@ -58,7 +58,7 @@ export function Settings() {
       </div>
 
       <Panel>
-        <PanelHeader title="Role Architecture" subtitle="Six target users; three fully implemented in Part 1" icon={<Users2 size={14} />} />
+        <PanelHeader title="Role Architecture" subtitle="Six target users; three active as switchable roles" icon={<Users2 size={14} />} />
         <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
           {ROLES.map((r) => (
             <div key={r.name} className={cn("rounded-xl border border-white/8 bg-white/3 p-3", r.status === "active" && "border-l-2 border-l-emerald-400")}>
@@ -111,7 +111,7 @@ export function Settings() {
               </button>
             </div>
             <p className="text-[11px] text-slate-500">
-              Current: <span className="text-slate-300">{density}</span> density{reducedMotion ? " · reduced motion on" : ""}. Preferences are session-scoped in Part 1.
+              Current: <span className="text-slate-300">{density}</span> density{reducedMotion ? " · reduced motion on" : ""}. Preferences are session-scoped for the demo.
             </p>
           </div>
         </Panel>
@@ -126,13 +126,15 @@ export function Settings() {
                 values. Use it before each judge demo run.
               </p>
             </div>
-            <Button variant="outline" onClick={() => window.location.reload()}>
+            <Button variant="outline" onClick={resetDemo}>
               <RefreshCw size={14} /> Reset demo dataset
             </Button>
             <div className="flex items-center gap-2 text-[11px] text-slate-500">
-              <StatusDot tone="warn" /> Changes are not persisted across reloads in Part 1
+              <StatusDot tone="warn" /> State is in-memory for the session · the durable copy is Notion
             </div>
-            <div className="pt-1"><ComingNext label="PERSISTENCE + BACKEND — PART 2" /></div>
+            <div className="pt-1">
+              <BadgeTone tone="ok">RESET RE-SEEDS THE DEMO IN PLACE</BadgeTone>
+            </div>
           </div>
         </Panel>
       </div>

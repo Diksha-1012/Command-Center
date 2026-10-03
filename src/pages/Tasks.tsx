@@ -1,15 +1,15 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { CalendarClock, GitBranch, Layers, Link2, Package, Play, Plus, UserCheck } from "lucide-react";
 import { useNexus } from "@/store/DataContext";
 import { NOW } from "@/data/seed";
 import { blockedDependents, filterTasks, sortTasks, type TaskView } from "@/lib/selectors";
-import { Avatar, BadgeTone, Button, ComingNext, Panel, PanelHeader, PriorityBadge, ProgressBar, SectionTitle, StatusBadge, Tabs } from "@/components/ui/primitives";
+import { Avatar, BadgeTone, Button, Panel, PanelHeader, PriorityBadge, ProgressBar, SectionTitle, StatusBadge, Tabs } from "@/components/ui/primitives";
 import { Drawer } from "@/components/ui/Overlay";
 import { TaskRow } from "@/components/domain/TaskRow";
 import { isOverdue, timeOf, STATUS_LABEL } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import type { Task, TaskStatus } from "@/types";
+import type { Priority, Task, TaskStatus } from "@/types";
 
 const COLUMNS: { status: TaskStatus; label: string; tone: "ok" | "warn" | "bad" | "neutral" | "blue" }[] = [
   { status: "not_started", label: "Not Started", tone: "neutral" },
@@ -19,10 +19,11 @@ const COLUMNS: { status: TaskStatus; label: string; tone: "ok" | "warn" | "bad" 
 ];
 
 export function Tasks() {
-  const { data, setTaskStatus, setTaskProgress } = useNexus();
+  const { data, setTaskStatus, setTaskProgress, createTask } = useNexus();
   const navigate = useNavigate();
   const [view, setView] = useState<TaskView>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
 
   const counts = useMemo(
     () => ({
@@ -49,12 +50,9 @@ export function Tasks() {
         title="Task Board"
         description="Every operational task, its owner, its blockers and the session it protects."
         action={
-          <div className="flex items-center gap-2">
-            <ComingNext label="NEW TASK PERSISTENCE — PART 2" />
-            <Button size="sm" variant="outline" disabled title="Task creation will persist once the backend lands in Part 2">
-              <Plus size={14} /> New task
-            </Button>
-          </div>
+          <Button size="sm" variant="ai" onClick={() => setCreating(true)} title="Create an operational task">
+            <Plus size={14} /> New task
+          </Button>
         }
       />
 
@@ -130,6 +128,8 @@ export function Tasks() {
           navigate("/schedule");
         }}
       />
+
+      <NewTaskDrawer open={creating} onCreate={createTask} onClose={() => setCreating(false)} />
     </div>
   );
 }
@@ -268,8 +268,206 @@ function TaskDrawer({
         ) : null}
 
         <p className="text-[11px] text-slate-500">
-          Status and progress changes apply to the live demo store immediately. Persistence to Notion/backend lands in Part 2.
+          Status and progress changes apply to the live store immediately and are written back to Notion on the next sync.
         </p>
+      </div>
+    </Drawer>
+  );
+}
+
+/* ------------------------------ new task ------------------------------- */
+
+const FIELD_CLASS =
+  "w-full rounded-lg border border-white/10 bg-ink-850 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:border-sky-400/50 focus:outline-none";
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="block space-y-1.5">
+      <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+/**
+ * Creates a real operational task via the store's `createTask` action — it lands
+ * in the live board immediately and is written to Notion on the next sync.
+ */
+function NewTaskDrawer({
+  open,
+  onCreate,
+  onClose,
+}: {
+  open: boolean;
+  onCreate: (task: Omit<Task, "id">) => Task;
+  onClose: () => void;
+}) {
+  const { data } = useNexus();
+  const departments = useMemo(
+    () => Array.from(new Set([...data.tasks.map((t) => t.department), "Operations"])).sort(),
+    [data.tasks],
+  );
+
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [department, setDepartment] = useState(departments[0] ?? "Operations");
+  const [teamId, setTeamId] = useState(data.teams[0]?.id ?? "");
+  const [ownerId, setOwnerId] = useState("m1");
+  const [priority, setPriority] = useState<Priority>("medium");
+  const [status, setStatus] = useState<TaskStatus>("not_started");
+  const [deadline, setDeadline] = useState(NOW.slice(0, 16));
+  const [sessionId, setSessionId] = useState("");
+
+  const reset = () => {
+    setTitle("");
+    setDescription("");
+    setPriority("medium");
+    setStatus("not_started");
+    setDeadline(NOW.slice(0, 16));
+    setSessionId("");
+  };
+
+  const submit = () => {
+    if (!title.trim()) return;
+    const isMember = data.members.some((m) => m.id === ownerId);
+    onCreate({
+      title: title.trim(),
+      description: description.trim() || "Created from the task board.",
+      ownerId,
+      ownerKind: isMember ? "member" : "volunteer",
+      department,
+      teamId,
+      priority,
+      status,
+      deadline: deadline.length === 16 ? `${deadline}:00` : deadline,
+      progress: status === "completed" ? 100 : 0,
+      dependencyIds: [],
+      sessionId: sessionId || undefined,
+    });
+    reset();
+    onClose();
+  };
+
+  return (
+    <Drawer
+      open={open}
+      onClose={onClose}
+      title="New task"
+      subtitle={<span className="text-slate-500">Applies to the live board and syncs to Notion</span>}
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={submit} disabled={!title.trim()}>
+            <Plus size={13} /> Create task
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        <Field label="Title">
+          <input
+            autoFocus
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="e.g. Confirm alternate AV feed for Auditorium B"
+            className={FIELD_CLASS}
+          />
+        </Field>
+
+        <Field label="Description">
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={2}
+            placeholder="What needs to happen and why"
+            className={cn(FIELD_CLASS, "resize-none")}
+          />
+        </Field>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Department">
+            <select value={department} onChange={(e) => setDepartment(e.target.value)} className={FIELD_CLASS}>
+              {departments.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Team">
+            <select value={teamId} onChange={(e) => setTeamId(e.target.value)} className={FIELD_CLASS}>
+              {data.teams.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Owner">
+            <select value={ownerId} onChange={(e) => setOwnerId(e.target.value)} className={FIELD_CLASS}>
+              <optgroup label="Core members">
+                {data.members.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name} · {m.role}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Volunteers">
+                {data.volunteers.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name} · {v.role}
+                  </option>
+                ))}
+              </optgroup>
+            </select>
+          </Field>
+
+          <Field label="Priority">
+            <select value={priority} onChange={(e) => setPriority(e.target.value as Priority)} className={FIELD_CLASS}>
+              {(["low", "medium", "high", "critical"] as Priority[]).map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Status">
+            <select value={status} onChange={(e) => setStatus(e.target.value as TaskStatus)} className={FIELD_CLASS}>
+              {COLUMNS.map((c) => (
+                <option key={c.status} value={c.status}>
+                  {STATUS_LABEL[c.status]}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Deadline">
+            <input type="datetime-local" value={deadline} onChange={(e) => setDeadline(e.target.value)} className={FIELD_CLASS} />
+          </Field>
+        </div>
+
+        <Field label="Related session (optional)">
+          <select value={sessionId} onChange={(e) => setSessionId(e.target.value)} className={FIELD_CLASS}>
+            <option value="">— none —</option>
+            {data.sessions.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.title} · {timeOf(s.startsAt)}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <div className="rounded-xl border border-white/8 bg-white/3 p-3">
+          <div className="flex items-center gap-2">
+            <BadgeTone tone="ok">VERIFIED SOURCE</BadgeTone>
+            <span className="text-[11px] text-slate-400">The new task is written to the operational store and queued for the next Notion sync.</span>
+          </div>
+        </div>
       </div>
     </Drawer>
   );

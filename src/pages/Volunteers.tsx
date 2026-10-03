@@ -4,7 +4,7 @@ import { useNexus } from "@/store/DataContext";
 import { loadBand, volunteerLoadSummary } from "@/lib/selectors";
 import { teamLoadMap, rebalanceSuggestions } from "@/lib/workloadAnalyzer";
 import { coverageGaps } from "@/lib/recommendationEngine";
-import { Avatar, BadgeTone, Button, ComingNext, Panel, PanelHeader, ProgressBar, SectionTitle, StatusDot, Tabs } from "@/components/ui/primitives";
+import { Avatar, BadgeTone, Button, Panel, PanelHeader, ProgressBar, SectionTitle, StatusDot, Tabs } from "@/components/ui/primitives";
 import { MiniBars, StackedBar } from "@/components/ui/charts";
 import { AssignmentCard } from "@/components/domain/AssignmentCard";
 import { cn } from "@/lib/cn";
@@ -42,7 +42,11 @@ export function Volunteers() {
         eyebrow="People"
         title="Volunteers"
         description="Workload, skills and live assignments across the volunteer pool."
-        action={<ComingNext label="AI ALLOCATION — PART 2" />}
+        action={
+          <BadgeTone tone="ai">
+            <Sparkles size={11} /> AI RECOMMENDATION ENGINE
+          </BadgeTone>
+        }
       />
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -240,7 +244,7 @@ export function Volunteers() {
           title="Volunteer Intelligence"
           subtitle="Skill, availability, workload, distance and shift-overlap matching for uncovered roles"
           icon={<Sparkles size={14} />}
-          action={<ComingNext label="AUTO-ASSIGN STAYS OFF" />}
+          action={<BadgeTone tone="warn">HUMAN APPROVAL REQUIRED · NO AUTO-ASSIGN</BadgeTone>}
         />
         <div className="grid gap-3 p-4 lg:grid-cols-2">
           {gaps.slice(0, 4).map((g) => (

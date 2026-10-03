@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Bot, ChevronDown, Database, GitBranch, HelpCircle, Send, ShieldCheck, Sparkles, User } from "lucide-react";
 import { useNexus } from "@/store/DataContext";
 import { answerQuestion, SUGGESTED_QUESTIONS } from "@/lib/copilot";
-import { BadgeTone, Button, ComingNext, Panel, PanelHeader, SectionTitle, SourceBadge } from "@/components/ui/primitives";
+import { BadgeTone, Button, Panel, PanelHeader, SectionTitle, SourceBadge } from "@/components/ui/primitives";
 import { cn } from "@/lib/cn";
 import type { CopilotMessage, EntityRef } from "@/types";
 
@@ -76,7 +76,11 @@ export function Copilot() {
         eyebrow="Intelligence"
         title="NEXUS Copilot"
         description="Grounded answers over the dependency graph, with confidence, sources and the reasoning behind each answer."
-        action={<ComingNext label="LLM BACKEND — PART 3" />}
+        action={
+          <BadgeTone tone="ai">
+            <Sparkles size={11} /> GROUNDED ENGINE · NO EXTERNAL LLM
+          </BadgeTone>
+        }
       />
 
       <div className="grid gap-5 lg:grid-cols-3">

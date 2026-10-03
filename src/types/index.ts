@@ -552,3 +552,218 @@ export interface NexusData {
   incidents: Incident[];
   activity: ActivityEvent[];
 }
+
+/* ===================================================================== */
+/*                            PART 3 EXTENSIONS                          */
+/* ===================================================================== */
+
+/* ------------------------------ roles --------------------------------- */
+
+export type RoleId = "organizer" | "ops_lead" | "volunteer";
+
+export interface RoleDefinition {
+  id: RoleId;
+  name: string;
+  blurb: string;
+  /** Route prefixes this role may access. `["*"]` = everything. */
+  routes: string[];
+  /** Identity used for "my tasks" / "my shift". */
+  memberId: string;
+  volunteerId?: string;
+}
+
+/* --------------------------- data provenance -------------------------- */
+
+/** Whether the active dataset is synthetic demo data or live Notion data. */
+export type DataSourceKind = "demo" | "live";
+
+export interface DataSourceMeta {
+  kind: DataSourceKind;
+  label: string; // "DEMO DATA" | "LIVE NOTION DATA"
+  detail: string;
+}
+
+/* ---------------------------- notion sync ----------------------------- */
+
+export type SyncStatus = "idle" | "syncing" | "success" | "error" | "offline";
+export type SyncDirection = "app_to_notion" | "notion_to_app";
+export type SyncOpKind = "create" | "update" | "skip" | "conflict";
+
+export interface SyncOp {
+  id: ID;
+  at: string;
+  direction: SyncDirection;
+  database: string;
+  entityKind: EntityKind;
+  entityId: ID;
+  entityLabel: string;
+  op: SyncOpKind;
+  fields: string[];
+}
+
+export interface SyncStats {
+  created: number;
+  updated: number;
+  failed: number;
+  pending: number;
+  recordsSynced: number;
+}
+
+export interface DatabaseSyncState {
+  id: ID;
+  name: string;
+  icon: string;
+  mappedEntity: EntityKind | "dependency";
+  rows: number;
+  synced: number;
+  failed: number;
+  lastSyncedAt: string | null;
+}
+
+export interface SyncLogEntry {
+  id: ID;
+  at: string;
+  level: "info" | "warn" | "error";
+  message: string;
+}
+
+export interface NotionSyncState {
+  status: SyncStatus;
+  health: Health;
+  lastSyncAt: string | null;
+  stats: SyncStats;
+  databases: DatabaseSyncState[];
+  recentOps: SyncOp[];
+  log: SyncLogEntry[];
+  error: string | null;
+}
+
+/* ------------------------- notion connection -------------------------- */
+
+export type WizardStep = 1 | 2 | 3 | 4 | 5;
+
+export interface NotionConnection {
+  step: WizardStep;
+  completed: boolean;
+  mode: NotionMode;
+  workspaceName: string;
+  workspaceIcon: string;
+  parentPageId: string;
+  parentPageName: string;
+  selectedDatabaseIds: ID[];
+  /** True when the server-side Notion proxy is reachable AND a token is configured. */
+  serverAvailable: boolean;
+  checking: boolean;
+  lastCheckedAt: string | null;
+}
+
+/* -------------------------- knowledge memory -------------------------- */
+
+export type MemoryKind = "lesson" | "incident" | "decision" | "workflow_success" | "workflow_failure" | "note";
+
+export interface MemoryEntry {
+  id: ID;
+  kind: MemoryKind;
+  title: string;
+  body: string;
+  /** Where the memory came from, e.g. "Post-event report". */
+  source: string;
+  tags: string[];
+  related: EntityRef[];
+  reusable: boolean;
+  capturedAt: string;
+  notionPageId?: string;
+}
+
+/* ---------------------------- event report ---------------------------- */
+
+export interface ReportSection {
+  id: string;
+  title: string;
+  kind: CopilotSource;
+  body: string;
+  bullets?: string[];
+  sources?: EntityRef[];
+}
+
+export interface EventReport {
+  id: ID;
+  eventId: ID;
+  title: string;
+  generatedAt: string;
+  summary: string;
+  sections: ReportSection[];
+  metrics: { label: string; value: string; tone: AccentTone }[];
+  recommendations: RecommendedAction[];
+}
+
+/* ------------------------------ replay -------------------------------- */
+
+export type ReplayKind =
+  | "start"
+  | "delay"
+  | "ai"
+  | "reassign"
+  | "request"
+  | "simulation"
+  | "approval"
+  | "incident"
+  | "sync"
+  | "resolve";
+
+export interface ReplayEvent {
+  id: ID;
+  /** HH:MM clock label used by the timeline rail. */
+  at: string;
+  sortKey: string;
+  kind: ReplayKind;
+  title: string;
+  detail: string;
+  actor?: string;
+  severity?: Severity;
+  related?: EntityRef[];
+  link?: string;
+}
+
+/* ------------------------------ what-if ------------------------------- */
+
+export interface WhatIfScenario {
+  id: ID;
+  question: string;
+  icon: string;
+  hint: string;
+}
+
+/* --------------------------- volunteer shifts ------------------------- */
+
+export interface ShiftAssignment {
+  id: ID;
+  volunteerId: ID;
+  role: string;
+  venue: string;
+  venueId: ID;
+  start: string;
+  end: string;
+  taskIds: ID[];
+  briefing: string;
+}
+
+/* ------------------------------ QR join ------------------------------- */
+
+export interface JoinRole {
+  id: ID;
+  role: string;
+  shift: string;
+  location: string;
+  spots: number;
+  filled: number;
+}
+
+export interface JoinSession {
+  id: ID;
+  eventName: string;
+  eventDate: string;
+  venueName: string;
+  roles: JoinRole[];
+  instructions: string[];
+}

@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Activity, AlertTriangle, ArrowUpRight, Boxes, CalendarDays, CheckCircle2, History, Radio, ShieldAlert, UserSquare2, Users2,
+  Activity, AlertTriangle, ArrowUpRight, Boxes, CalendarDays, CheckCircle2, ChevronDown, HelpCircle, History, Radio, ShieldAlert, UserSquare2, Users2,
 } from "lucide-react";
 import { useNexus } from "@/store/DataContext";
 import { NOW } from "@/data/seed";
 import { activeAlerts, operationalPulse, resourceConflicts, teamRollups, volunteerLoadSummary } from "@/lib/selectors";
+import { teamLoadMap } from "@/lib/workloadAnalyzer";
 import { Avatar, BadgeTone, Button, Panel, PanelHeader, ProgressBar, SectionTitle, StatusDot } from "@/components/ui/primitives";
 import { AlertCard } from "@/components/domain/AlertCard";
 import { SessionDrawer } from "@/components/domain/SessionDrawer";
@@ -19,12 +20,14 @@ export function CommandCenter() {
   const { data, acknowledgeAlert, acknowledgeAll, risk } = useNexus();
   const navigate = useNavigate();
   const [openSessionId, setOpenSessionId] = useState<string | null>(null);
+  const [whyTeam, setWhyTeam] = useState<string | null>(null);
 
   const pulse = operationalPulse(data);
   const alerts = activeAlerts(data);
   const teams = teamRollups(data);
   const load = volunteerLoadSummary(data.volunteers);
   const conflicts = resourceConflicts(data.resources);
+  const loads = teamLoadMap(data);
 
   const openSession = data.sessions.find((s) => s.id === openSessionId) ?? null;
 
@@ -169,11 +172,24 @@ export function CommandCenter() {
           <div className="space-y-2 p-4">
             {teams.map((t) => {
               const total = t.openTasks + t.doneTasks || 1;
+              const load = loads.find((l) => l.teamId === t.teamId);
+              const isOpen = whyTeam === t.teamId;
+              // Findings that belong to this department: task- or volunteer-owned risks.
+              const teamFindings = risk.findings
+                .filter((f) => {
+                  if (!f.ref) return false;
+                  if (f.ref.kind === "task") return data.tasks.find((x) => x.id === f.ref!.id)?.teamId === t.teamId;
+                  if (f.ref.kind === "volunteer") return data.volunteers.find((x) => x.id === f.ref!.id)?.teamId === t.teamId;
+                  return false;
+                })
+                .slice(0, 3);
               return (
                 <div key={t.teamId} className="rounded-xl border border-white/8 bg-white/3 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm text-slate-200">{t.name}</span>
-                    <StatusDot tone={t.status === "healthy" ? "ok" : t.status === "warning" ? "warn" : "bad"} />
+                    <span className={cn("font-mono text-xs", (load?.load ?? 0) > 78 ? "text-rose-300" : (load?.load ?? 0) > 65 ? "text-amber-300" : "text-emerald-300")}>
+                      {load?.load ?? 0}%
+                    </span>
                   </div>
                   <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
                     <span>{t.leadName} · {t.volunteers} volunteers</span>
@@ -182,6 +198,33 @@ export function CommandCenter() {
                   <div className="mt-2">
                     <ProgressBar value={(t.doneTasks / total) * 100} tone={t.status === "critical" ? "bad" : t.status === "warning" ? "warn" : "ok"} height={5} />
                   </div>
+                  <button
+                    onClick={() => setWhyTeam(isOpen ? null : t.teamId)}
+                    className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/4 px-2 py-1 text-[10px] text-slate-400 hover:text-slate-200"
+                  >
+                    <HelpCircle size={10} /> Why?
+                    <ChevronDown size={10} className={cn("transition-transform", isOpen && "rotate-180")} />
+                  </button>
+                  {isOpen ? (
+                    <div className="mt-2 rounded-lg border border-white/8 bg-white/3 p-2.5">
+                      <div className="text-[10px] font-semibold uppercase tracking-wide text-violet-300">Load drivers</div>
+                      <ul className="mt-1 space-y-0.5">
+                        {(load?.drivers ?? []).map((d) => (
+                          <li key={d} className="text-[11px] text-slate-400">• {d}</li>
+                        ))}
+                      </ul>
+                      {teamFindings.length ? (
+                        <div className="mt-2">
+                          <div className="text-[10px] font-semibold uppercase tracking-wide text-rose-300">Rule findings</div>
+                          <ul className="mt-1 space-y-0.5">
+                            {teamFindings.map((f) => (
+                              <li key={f.id} className="text-[11px] text-slate-400">• {f.title}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               );
             })}

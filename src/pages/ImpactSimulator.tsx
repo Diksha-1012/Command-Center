@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import { useNexus } from "@/store/DataContext";
 import { simulateChange } from "@/lib/changeSimulator";
-import { BadgeTone, Button, ComingNext, Panel, PanelHeader, SectionTitle, SourceBadge } from "@/components/ui/primitives";
+import { BadgeTone, Button, Panel, PanelHeader, SectionTitle, SourceBadge } from "@/components/ui/primitives";
 import { DependencyChain } from "@/components/domain/DependencyChain";
 import { timeOf } from "@/lib/format";
 import { cn } from "@/lib/cn";
@@ -383,7 +383,9 @@ export function ImpactSimulator() {
                       narrative over them.
                     </p>
                   </div>
-                  <ComingNext label="LLM NARRATIVE — PART 3" />
+                  <BadgeTone tone="ai">
+                    <Sparkles size={11} /> NARRATIVE GENERATED FROM THE GRAPH · NO EXTERNAL LLM
+                  </BadgeTone>
                 </div>
               </Panel>
             </>
